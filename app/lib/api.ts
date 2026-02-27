@@ -204,6 +204,29 @@ export async function createCollectionItem(
     });
 }
 
+export async function patchCollectionItem(
+    collectionId: string,
+    itemId: string,
+    fieldData: Record<string, unknown>,
+    cfg: ReturnType<typeof getConfig>
+): Promise<unknown> {
+    const payload = { isArchived: false, isDraft: false, fieldData };
+    if (cfg.webflowUseLive) {
+        try {
+            return await webflowFetch(`/collections/${collectionId}/items/${itemId}/live`, cfg, {
+                method: "PATCH",
+                body: JSON.stringify(payload),
+            });
+        } catch {
+            // fall through to draft
+        }
+    }
+    return webflowFetch(`/collections/${collectionId}/items/${itemId}`, cfg, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+    });
+}
+
 // ─── JWT / Session ────────────────────────────────────────────────────────────
 
 export interface SessionPayload {

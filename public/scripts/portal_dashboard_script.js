@@ -81,22 +81,7 @@
       
       const fileSize = card.querySelector('[data-portal="doc-size"]');
       if (fileSize) {
-        if (doc.file_size_label) {
-            fileSize.textContent = doc.file_size_label;
-        } else if (doc.file_url) {
-            fileSize.textContent = 'Calculating...';
-            fetch(API_URL + '/proxy/file?url=' + fileUrlParam + '&action=size', {credentials: 'include'})
-              .then(function(r) { return r.json(); })
-              .then(function(data) {
-                  if (data.size_label) fileSize.textContent = data.size_label;
-                  else fileSize.textContent = 'Unknown Size';
-              })
-              .catch(function() {
-                  fileSize.textContent = 'Unknown Size';
-              });
-        } else {
-            fileSize.textContent = '';
-        }
+        fileSize.textContent = doc.file_size_label || '';
       }
       
       // Document date
