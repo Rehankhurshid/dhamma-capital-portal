@@ -147,6 +147,11 @@
         emptyStates.forEach(function(el) {
            el.style.display = count === 0 ? '' : 'none';
         });
+        
+        // Hide the grid itself if empty
+        if (grid) {
+           grid.style.display = count === 0 ? 'none' : '';
+        }
       });
     }
 
@@ -169,6 +174,11 @@
     emptyStates.forEach(function(el) {
        el.style.display = docs.length === 0 ? '' : 'none';
     });
+    
+    // Hide the grid itself if no items
+    if (grid) {
+       grid.style.display = docs.length === 0 ? 'none' : '';
+    }
   }
   
   // Setup Logout button
