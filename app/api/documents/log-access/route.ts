@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getConfig, getEnvFromProcess, getSession, createCollectionItem, sanitizeText } from "@/app/lib/api";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-export const runtime = "edge";
+
+
 
 export async function POST(req: NextRequest) {
     try {
-        let env: CloudflareEnv;
-        try {
-            const ctx = await getCloudflareContext({ async: true });
-            env = ctx.env as CloudflareEnv;
-        } catch {
-            env = getEnvFromProcess();
-        }
+        const env = getEnvFromProcess();
         const cfg = getConfig(env);
         const session = await getSession(req, cfg);
         if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

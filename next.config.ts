@@ -1,11 +1,5 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  basePath: "/portal",
-};
+const nextConfig: NextConfig = {};
 
 export default nextConfig;
-
-// Enable Cloudflare bindings in `next dev`
-import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
-initOpenNextCloudflareForDev();

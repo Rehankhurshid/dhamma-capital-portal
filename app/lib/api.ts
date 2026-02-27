@@ -243,7 +243,7 @@ export function sessionCookieOptions(cfg: ReturnType<typeof getConfig>) {
         name: cfg.sessionCookieName,
         httpOnly: true,
         secure: true,
-        sameSite: "lax" as const,
+        sameSite: "none" as const,
         maxAge: cfg.sessionHours * 60 * 60,
         path: "/",
     };

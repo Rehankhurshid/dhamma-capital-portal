@@ -1,27 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getConfig, getEnvFromProcess, listCollectionItems, extractInvestorDisplay, extractPassword, safeLower, sanitizeText, buildSessionToken, sessionCookieOptions, isRateLimited, registerFailedAttempt, clearFailedAttempts } from "@/app/lib/api";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-export const runtime = "edge";
+
+
 
 export async function POST(req: NextRequest) {
     try {
-        let env: CloudflareEnv;
-        let kv: KVNamespace;
-        try {
-            const ctx = await getCloudflareContext({ async: true });
-            env = ctx.env as CloudflareEnv;
-            kv = env.KV;
-        } catch {
-            env = getEnvFromProcess();
-            kv = {
-                get: async () => null,
-                put: async () => { },
-                delete: async () => { },
-                list: async () => ({ keys: [], list_complete: true, cacheStatus: null }),
-                getWithMetadata: async () => ({ value: null, metadata: null, cacheStatus: null }),
-            } as unknown as KVNamespace;
-        }
+        const env = getEnvFromProcess();
+        const kv: KVNamespace = {
+            get: async () => null,
+            put: async () => { },
+            delete: async () => { },
+            list: async () => ({ keys: [], list_complete: true, cacheStatus: null }),
+            getWithMetadata: async () => ({ value: null, metadata: null, cacheStatus: null }),
+        } as unknown as KVNamespace;
 
         const cfg = getConfig(env);
         const body = (await req.json()) as { email?: string; password?: string; investorType?: string };

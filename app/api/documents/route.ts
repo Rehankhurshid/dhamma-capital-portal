@@ -4,19 +4,13 @@ import {
     safeLower, sanitizeText, getField, parseBoolean, normalizeScope,
     extractReferenceIds, extractFileUrl,
 } from "@/app/lib/api";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-export const runtime = "edge";
+
+
 
 export async function GET(req: NextRequest) {
     try {
-        let env: CloudflareEnv;
-        try {
-            const ctx = await getCloudflareContext({ async: true });
-            env = ctx.env as CloudflareEnv;
-        } catch {
-            env = getEnvFromProcess();
-        }
+        const env = getEnvFromProcess();
         const cfg = getConfig(env);
         const session = await getSession(req, cfg);
         if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
