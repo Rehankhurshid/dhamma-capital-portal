@@ -13,7 +13,7 @@
       const inv = data.investor;
       
       // Update User Name (Header profile & Welcome heading)
-      const userNames = document.querySelectorAll('[data-portal="user-name"]');
+      const userNames = document.querySelectorAll('[data-portal="user-name"], [data-portal="investor-name"]');
       userNames.forEach(function(el) {
         if (el.children.length === 0 || el.tagName === 'SPAN') {
             el.textContent = inv.name || 'Investor';
@@ -50,7 +50,7 @@
   }
   
   function renderDocuments(docs) {
-    const grid = document.querySelector('[data-portal="documents-grid"]');
+    const grid = document.querySelector('[data-portal="document-grid"]');
     if (!grid) return;
     
     // Find template card
