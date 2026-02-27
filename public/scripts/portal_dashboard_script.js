@@ -77,8 +77,27 @@
       const fileType = card.querySelector('[data-portal="doc-type"]');
       if (fileType) fileType.textContent = (doc.file_type || 'PDF').toUpperCase();
       
+      const fileUrlParam = encodeURIComponent(doc.file_url || '');
+      
       const fileSize = card.querySelector('[data-portal="doc-size"]');
-      if (fileSize) fileSize.textContent = doc.file_size_label || '';
+      if (fileSize) {
+        if (doc.file_size_label) {
+            fileSize.textContent = doc.file_size_label;
+        } else if (doc.file_url) {
+            fileSize.textContent = 'Calculating...';
+            fetch(API_URL + '/proxy/file?url=' + fileUrlParam + '&action=size', {credentials: 'include'})
+              .then(function(r) { return r.json(); })
+              .then(function(data) {
+                  if (data.size_label) fileSize.textContent = data.size_label;
+                  else fileSize.textContent = 'Unknown Size';
+              })
+              .catch(function() {
+                  fileSize.textContent = 'Unknown Size';
+              });
+        } else {
+            fileSize.textContent = '';
+        }
+      }
       
       // Document date
       const dateEl = card.querySelector('[data-portal="doc-date"]');
@@ -92,15 +111,18 @@
       }
       
       // Document link
+      const titleParam = encodeURIComponent(doc.title || 'Document');
+      const downloadUrl = fileUrlParam ? (API_URL + '/proxy/file?url=' + fileUrlParam + '&action=download&filename=' + titleParam) : '#';
+
       // Set href on the card itself if it's an anchor, otherwise find inner link
       if (card.tagName === 'A') {
-          card.href = doc.file_url || '#';
-          card.target = '_blank';
+          card.href = downloadUrl;
+          card.removeAttribute('target');
       } else {
           const innerLink = card.querySelector('[data-portal="doc-link"]');
           if (innerLink) {
-              innerLink.href = doc.file_url || '#';
-              innerLink.target = '_blank';
+              innerLink.href = downloadUrl;
+              innerLink.removeAttribute('target');
           }
       }
       
