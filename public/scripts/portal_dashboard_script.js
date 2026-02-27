@@ -136,6 +136,18 @@
         if (countBadge) countBadge.textContent = count + ' documents';
       });
     }
+
+    // Hide Loading State
+    const loadingStates = document.querySelectorAll('[data-portal="loading-state"]');
+    loadingStates.forEach(function(el) {
+       el.style.display = 'none';
+    });
+
+    // Handle Empty State
+    const emptyStates = document.querySelectorAll('[data-portal="empty-state"]');
+    emptyStates.forEach(function(el) {
+       el.style.display = docs.length === 0 ? '' : 'none';
+    });
   }
   
   // Setup Logout button
