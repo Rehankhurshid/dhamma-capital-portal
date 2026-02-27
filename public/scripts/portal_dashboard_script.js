@@ -137,10 +137,18 @@
       });
     }
 
-    // Hide Loading State
+    // Hide Loading State with smooth fade out
     const loadingStates = document.querySelectorAll('[data-portal="loading-state"]');
     loadingStates.forEach(function(el) {
-       el.style.display = 'none';
+       el.style.transition = 'opacity 0.6s ease';
+       el.style.opacity = '0';
+       
+       // Remove from DOM after fade out completes
+       setTimeout(function() {
+         if (el.parentNode) {
+           el.parentNode.removeChild(el);
+         }
+       }, 600);
     });
 
     // Handle Empty State
