@@ -134,6 +134,12 @@
           }
         });
         if (countBadge) countBadge.textContent = count + ' documents';
+        
+        // Update Empty State for Search Results
+        const emptyStates = document.querySelectorAll('[data-portal="empty-state"]');
+        emptyStates.forEach(function(el) {
+           el.style.display = count === 0 ? '' : 'none';
+        });
       });
     }
 
