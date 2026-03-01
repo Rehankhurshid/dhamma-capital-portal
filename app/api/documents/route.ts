@@ -31,10 +31,15 @@ export async function GET(req: NextRequest) {
                 const isVisible = parseBoolean(getField(fd, ["is_visible", "is-visible"], true), true);
                 const title = sanitizeText(getField(fd, ["title", "name"], "Untitled Document"));
                 const category = sanitizeText(getField(fd, ["category"], "Other"));
-                const publishedDate = sanitizeText(
-                    getField(fd, ["published_date", "published-date"], item.lastPublished || item.createdOn || "")
+                // Prefer explicit CMS date field; fall back to legacy published_date, then system timestamps.
+                const documentDate = sanitizeText(
+                    getField(
+                        fd,
+                        ["date", "document_date", "document-date", "published_date", "published-date"],
+                        item.lastPublished || item.createdOn || ""
+                    )
                 );
-                const normalizedDate = isNaN(new Date(publishedDate).getTime()) ? null : new Date(publishedDate);
+                const normalizedDate = isNaN(new Date(documentDate).getTime()) ? null : new Date(documentDate);
 
                 return {
                     id: item.id,
@@ -45,7 +50,7 @@ export async function GET(req: NextRequest) {
                     file_url: extractFileUrl(fd),
                     file_type: sanitizeText(getField(fd, ["file_type", "file-type"], "")),
                     file_size_label: sanitizeText(getField(fd, ["file_size_label", "file-size-label"], "")),
-                    published_date: publishedDate,
+                    published_date: documentDate,
                     created_on: item.createdOn,
                     investor_ref_ids: refIds,
                     scope,

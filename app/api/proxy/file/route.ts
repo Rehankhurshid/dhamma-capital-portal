@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
             });
         }
 
-        if (action === "download") {
+        if (action === "download" || action === "view") {
             const res = await fetch(targetUrl);
             if (!res.ok) throw new Error("Failed to fetch remote file");
 
@@ -71,7 +71,8 @@ export async function GET(req: NextRequest) {
 
             const finalName = filename.toLowerCase().endsWith(ext) ? filename : `${filename}${ext}`;
 
-            headers.set("Content-Disposition", `attachment; filename="${finalName}"`);
+            const dispositionType = action === "view" ? "inline" : "attachment";
+            headers.set("Content-Disposition", `${dispositionType}; filename="${finalName}"`);
             headers.delete("access-control-allow-origin");
 
             return new NextResponse(res.body, {

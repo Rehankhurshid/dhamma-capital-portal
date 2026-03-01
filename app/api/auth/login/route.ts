@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
             cfg
         );
 
-        const res = NextResponse.json({ authenticated: true, investor, expiresInHours: cfg.sessionHours });
+        const res = NextResponse.json({ authenticated: true, investor, token, expiresInHours: cfg.sessionHours });
         const cookieOpts = sessionCookieOptions(cfg);
         res.cookies.set(cookieOpts.name, token, {
             httpOnly: cookieOpts.httpOnly,

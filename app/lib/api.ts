@@ -278,8 +278,23 @@ export async function getSession(
     req: NextRequest,
     cfg: ReturnType<typeof getConfig>
 ): Promise<SessionPayload | null> {
-    const token = req.cookies.get(cfg.sessionCookieName)?.value;
+    const cookieToken = req.cookies.get(cfg.sessionCookieName)?.value;
+    if (cookieToken) {
+        try {
+            return await verifySessionToken(cookieToken, cfg);
+        } catch {
+            // fall through to Authorization header token
+        }
+    }
+
+    const authHeader = req.headers.get("authorization") || "";
+    const bearerPrefix = "bearer ";
+    const normalized = authHeader.trim();
+    const token = normalized.toLowerCase().startsWith(bearerPrefix)
+        ? normalized.slice(bearerPrefix.length).trim()
+        : "";
     if (!token) return null;
+
     try {
         return await verifySessionToken(token, cfg);
     } catch {
