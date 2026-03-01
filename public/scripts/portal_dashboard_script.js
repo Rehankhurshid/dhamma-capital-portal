@@ -1444,6 +1444,7 @@
     indicators.forEach(function(node) {
       node.classList.toggle('is-active', hasApplied);
       node.setAttribute('data-filters-applied', hasApplied ? 'true' : 'false');
+      node.style.display = hasApplied ? '' : 'none';
 
       if (!node.getAttribute('data-default-indicator-label')) {
         node.setAttribute('data-default-indicator-label', String(node.textContent || '').trim());
