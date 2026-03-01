@@ -909,11 +909,6 @@
       const isActive = value === currentReportFilter;
       btn.classList.toggle('is-active', isActive);
       btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-
-      if (btn.style) {
-        btn.style.background = isActive ? '#17365d' : '#fff';
-        btn.style.color = isActive ? '#fff' : '#17365d';
-      }
     });
   }
 
