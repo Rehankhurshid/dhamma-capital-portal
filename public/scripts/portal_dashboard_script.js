@@ -804,6 +804,7 @@
     ensureDatePickerHostContainer();
     ensureCustomDateControlsWiring();
     updateCustomDateApplyState();
+    updateDatePickerTriggerText();
     if (customDatePickerReady) return;
 
     loadLitepickerAssets()
@@ -811,8 +812,9 @@
         if (!window.Litepicker || !customDateRangeInput) return;
         if (customDatePicker) return;
 
+        const pickerAnchor = getDatePickerAnchorElement();
         customDatePicker = new window.Litepicker({
-          element: customDateRangeInput,
+          element: pickerAnchor,
           singleMode: false,
           autoApply: true,
           numberOfMonths: 2,
@@ -876,16 +878,21 @@
       customDateRangeInput.style.background = '#fff';
       customDateRangeInput.style.color = '#17365d';
       customDateRangeInput.style.minWidth = '220px';
-      if (customDateOpenButton || customDateOpenButtons.length || customDateHostIsGenerated) {
-        customDateRangeInput.style.position = 'absolute';
-        customDateRangeInput.style.width = '1px';
-        customDateRangeInput.style.height = '1px';
-        customDateRangeInput.style.padding = '0';
-        customDateRangeInput.style.border = '0';
-        customDateRangeInput.style.opacity = '0';
-        customDateRangeInput.style.pointerEvents = 'none';
-      }
       customDateControls.insertBefore(customDateRangeInput, customDateControls.firstChild);
+    }
+
+    if (customDateOpenButtons.length) {
+      anchorRangeInputToTrigger(customDateOpenButtons[0]);
+    } else if (customDateHostIsGenerated) {
+      customDateRangeInput.style.position = 'absolute';
+      customDateRangeInput.style.left = '-9999px';
+      customDateRangeInput.style.top = '0';
+      customDateRangeInput.style.width = '1px';
+      customDateRangeInput.style.height = '1px';
+      customDateRangeInput.style.padding = '0';
+      customDateRangeInput.style.border = '0';
+      customDateRangeInput.style.opacity = '0';
+      customDateRangeInput.style.pointerEvents = 'none';
     }
 
     if (customDateStartInput) {
@@ -915,6 +922,7 @@
     if (syncInputText) {
       syncRangeInputFromDates();
     }
+    updateDatePickerTriggerText();
     updateCustomDateApplyState();
     if (shouldApply) {
       applyFiltersAndRender();
@@ -949,6 +957,63 @@
     if (!customDateRangeInput) return;
     customDateRangeInput.focus();
     customDateRangeInput.click();
+  }
+
+  function getDatePickerAnchorElement() {
+    if (customDateOpenButtons.length) {
+      return customDateOpenButtons[0];
+    }
+    return customDateRangeInput;
+  }
+
+  function anchorRangeInputToTrigger(trigger) {
+    if (!trigger || !customDateRangeInput) return;
+
+    const triggerStyle = window.getComputedStyle(trigger);
+    if (triggerStyle.position === 'static') {
+      trigger.style.position = 'relative';
+    }
+
+    if (customDateRangeInput.parentElement !== trigger) {
+      trigger.appendChild(customDateRangeInput);
+    }
+
+    customDateRangeInput.style.position = 'absolute';
+    customDateRangeInput.style.left = '0';
+    customDateRangeInput.style.top = '0';
+    customDateRangeInput.style.width = '100%';
+    customDateRangeInput.style.height = '100%';
+    customDateRangeInput.style.minWidth = '0';
+    customDateRangeInput.style.padding = '0';
+    customDateRangeInput.style.border = '0';
+    customDateRangeInput.style.opacity = '0';
+    customDateRangeInput.style.pointerEvents = 'none';
+  }
+
+  function updateDatePickerTriggerText() {
+    if (!customDateOpenButtons.length) return;
+
+    const label = (customDateStart && customDateEnd)
+      ? formatDateLabel(customDateStart) + ' - ' + formatDateLabel(customDateEnd)
+      : '';
+
+    customDateOpenButtons.forEach(function(btn) {
+      const target = btn.firstElementChild && btn.firstElementChild.children.length === 0
+        ? btn.firstElementChild
+        : btn;
+
+      if (!target.getAttribute('data-default-date-label')) {
+        target.setAttribute('data-default-date-label', String(target.textContent || '').trim() || 'Date Range');
+      }
+
+      target.textContent = label || target.getAttribute('data-default-date-label') || 'Date Range';
+    });
+  }
+
+  function formatDateLabel(value) {
+    const date = new Date(String(value) + 'T00:00:00');
+    if (!Number.isFinite(date.getTime())) return String(value || '');
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
   function updateCustomDateApplyState() {
