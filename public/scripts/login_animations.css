@@ -1,13 +1,14 @@
 /**
  * Login Page Animations — Dhamma Capital
- * Cinematic image effect + glass morphism + entrance animations
+ * WebGL shader canvas + glass morphism + entrance animations
  *
  * Load in Webflow Page Settings → Inside <head> tag:
  *   <link rel="stylesheet" href="<DEPLOY_URL>/scripts/login_animations.css">
  */
 
 /* ═══════════════════════════════════════════════════════
-   1. HERO IMAGE — cinematic Ken Burns + color wash + light leak
+   1. HERO IMAGE — WebGL shader canvas overlay
+   CSS handles positioning; JS handles the shader rendering.
    ═══════════════════════════════════════════════════════ */
 
 .login-img_wrap {
@@ -15,82 +16,20 @@
   overflow: hidden;
 }
 
-/* Slow cinematic zoom + drift on the hero image */
-.login-hero_img {
-  animation: dcKenBurns 25s ease-in-out infinite alternate;
-  transform-origin: 30% 40%;
-  will-change: transform;
-}
-
-@keyframes dcKenBurns {
-  0%   { transform: scale(1);    }
-  50%  { transform: scale(1.08) translate(-1.5%, 1%); }
-  100% { transform: scale(1.04) translate(1%, -0.5%); }
-}
-
-/* Animated color wash overlay — shifting brand tones */
-.login-img_wrap::before {
-  content: '';
+/* WebGL canvas — covers the image container */
+#dc-shader {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(10, 22, 42, 0.45) 0%,
-    rgba(26, 58, 82, 0.2) 35%,
-    rgba(18, 60, 72, 0.3) 65%,
-    rgba(10, 22, 42, 0.5) 100%
-  );
-  background-size: 300% 300%;
-  animation: dcColorWash 12s ease-in-out infinite;
   z-index: 1;
-  pointer-events: none;
+  pointer-events: auto;
+  display: block;
 }
 
-@keyframes dcColorWash {
-  0%   { background-position: 0% 0%; }
-  50%  { background-position: 100% 100%; }
-  100% { background-position: 0% 0%; }
-}
-
-/* Diagonal light leak sweep */
-.login-img_wrap::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    125deg,
-    transparent 0%,
-    transparent 35%,
-    rgba(255, 255, 255, 0.08) 45%,
-    rgba(255, 255, 255, 0.14) 50%,
-    rgba(255, 255, 255, 0.08) 55%,
-    transparent 65%,
-    transparent 100%
-  );
-  background-size: 250% 100%;
-  animation: dcLightLeak 8s ease-in-out infinite;
-  z-index: 2;
-  pointer-events: none;
-}
-
-@keyframes dcLightLeak {
-  0%   { background-position: 150% center; opacity: 0; }
-  15%  { opacity: 1; }
-  85%  { opacity: 1; }
-  100% { background-position: -50% center; opacity: 0; }
-}
-
-/* Bottom-edge soft vignette for depth */
-.dc-vignette {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse at 50% 50%,
-    transparent 40%,
-    rgba(10, 22, 42, 0.35) 100%
-  );
-  z-index: 3;
-  pointer-events: none;
+/* The original image stays visible until the shader texture loads,
+   then JS sets opacity: 0 on it. Keep it behind the canvas. */
+.login-hero_img {
+  transition: opacity 0.8s ease;
+  will-change: opacity;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -358,7 +297,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .login-form_content,
-  .login-hero_img,
   .dc-animate-in > *,
   .dc-child-animate {
     animation: none !important;
@@ -367,9 +305,10 @@
     filter: none !important;
   }
 
-  .login-img_wrap::before,
-  .login-img_wrap::after {
-    animation: none !important;
+  /* Shader still renders one static frame via JS,
+     so we just hide any CSS-level animation artifacts */
+  .login-hero_img {
+    opacity: 1 !important;
   }
 }
 
@@ -393,10 +332,5 @@
 
   .dc-animate-in > * {
     animation-delay: calc(0.25s + var(--dc-i, 0) * 0.06s);
-  }
-
-  /* Simpler Ken Burns on mobile */
-  .login-hero_img {
-    animation-duration: 30s;
   }
 }
