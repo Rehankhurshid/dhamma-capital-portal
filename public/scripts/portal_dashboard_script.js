@@ -1,12 +1,105 @@
 (function() {
-  const API_URL = 'https://nextjs-portal-psi.vercel.app/api';
+  const portalConfig = window.PortalConfig || {};
+  const FALLBACK_API_ORIGIN = 'https://nextjs-portal-psi.vercel.app';
+  const API_ORIGIN = String(portalConfig.apiOrigin || FALLBACK_API_ORIGIN).replace(/\/$/, '');
+  const API_URL = API_ORIGIN + '/api';
+  const LOGIN_PATH = portalConfig.loginPath || '/login';
+  const AUTH_TOKEN_KEY = portalConfig.tokenStorageKey || 'dc_portal_token';
+  const LAST_SEEN_KEY = portalConfig.lastSeenStorageKey || 'dc_portal_last_seen_at';
+  const gridContainer = document.querySelector('[data-portal="document-grid"]');
+  const listContainer = document.querySelector('[data-portal="document-vertical-list"]');
+  const searchInput = document.querySelector('[data-portal="search-input"]');
+  const countBadge = document.querySelector('[data-portal="total-docs"]');
+  const emptyStates = document.querySelectorAll('[data-portal="empty-state"]');
+  const loadingStates = document.querySelectorAll('[data-portal="loading-state"]');
+  const layoutButtons = document.querySelectorAll('[data-layout="grid"], [data-layout="flex"]');
+  let allDocuments = [];
+  let currentSearchTerm = '';
+  let currentVisibleCount = 0;
+  let currentSortOrder = 'newest';
+  let currentReportFilter = 'all';
+  let customDateStart = '';
+  let customDateEnd = '';
+  let searchClearButton = null;
+  let sortSelect = null;
+  let reportFilterButtons = [];
+  let customDateControls = null;
+  let customDateStartInput = null;
+  let customDateEndInput = null;
+  let customDateApplyButton = null;
+  let filtersResetButton = null;
+  let activeLayout = 'grid';
+  let loadingStateHandled = false;
+  let lastSeenAt = getLastSeenAt();
+
+  function getStoredToken() {
+    try {
+      return window.localStorage.getItem(AUTH_TOKEN_KEY) || '';
+    } catch {
+      return '';
+    }
+  }
+
+  function clearStoredToken() {
+    try {
+      window.localStorage.removeItem(AUTH_TOKEN_KEY);
+    } catch (err) {
+      console.warn('Could not clear auth token:', err);
+    }
+  }
+
+  function getLastSeenAt() {
+    try {
+      const raw = window.localStorage.getItem(LAST_SEEN_KEY);
+      const ts = raw ? Number(raw) : 0;
+      return Number.isFinite(ts) && ts > 0 ? ts : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  function setLastSeenAt(ts) {
+    try {
+      window.localStorage.setItem(LAST_SEEN_KEY, String(ts || Date.now()));
+    } catch (err) {
+      console.warn('Could not persist last seen timestamp:', err);
+    }
+  }
+
+  function authFetch(url, options) {
+    const opts = options || {};
+    const headers = new Headers(opts.headers || undefined);
+    const token = getStoredToken();
+    if (token) {
+      headers.set('Authorization', 'Bearer ' + token);
+    }
+
+    return fetch(url, Object.assign({}, opts, {
+      headers,
+      credentials: opts.credentials || 'include'
+    }));
+  }
+
+  function redirectToLogin(clearToken) {
+    if (clearToken) {
+      clearStoredToken();
+    }
+    window.location.href = LOGIN_PATH;
+  }
   
   // 1. Session Check
-  fetch(API_URL + '/auth/session', { credentials: 'include' })
-    .then(function(r) { return r.json(); })
+  authFetch(API_URL + '/auth/session')
+    .then(function(r) {
+      if (r.status === 401) {
+        redirectToLogin(true);
+        return null;
+      }
+      return r.json();
+    })
     .then(function(data) {
+      if (!data) return;
       if (!data.authenticated) {
-        window.location.href = '/app/login';
+        redirectToLogin(true);
         return;
       }
       
@@ -25,160 +118,783 @@
       // Update Breadcrumb profile type
       const breadcrumbType = document.querySelector('[data-portal="investor-type-breadcrumb"]');
       if (breadcrumbType) {
-        const typeStr = inv.investor_type === 'domestic' ? 'Domestic Institutional' : 
-                       inv.investor_type === 'foreign' ? 'Foreign Institutional' : 
+        const typeStr = inv.investor_type === 'dii' ? 'Domestic Institutional' : 
+                       inv.investor_type === 'fii' ? 'Foreign Institutional' : 
                        'Valued Investor';
         breadcrumbType.textContent = typeStr + ' - Documents';
       }
+
+      setupLayoutSwitcher();
+      setupSearch();
+      setupFilters();
+      setupLastSeenTracking();
       
       // Fetch Documents
       loadDocuments();
     })
-    .catch(function() {
-      window.location.href = '/app/login';
+    .catch(function(err) {
+      console.error('Session check failed:', err);
+      redirectToLogin(false);
     });
     
   function loadDocuments() {
-    fetch(API_URL + '/documents', { credentials: 'include' })
-      .then(function(r) { return r.json(); })
+    authFetch(API_URL + '/documents')
+      .then(function(r) {
+        if (r.status === 401) {
+          redirectToLogin(true);
+          return null;
+        }
+        return r.json();
+      })
       .then(function(data) {
+        if (!data) return;
         if (data.documents) {
-          renderDocuments(data.documents);
+          allDocuments = Array.isArray(data.documents) ? data.documents : [];
+          applyFiltersAndRender();
         }
       })
-      .catch(console.error);
+      .catch(function(err) {
+        console.error('Documents fetch failed:', err);
+      });
   }
   
+  function applyFiltersAndRender() {
+    const term = currentSearchTerm.trim().toLowerCase();
+    const range = getCustomDateRangeState();
+    const filtered = allDocuments
+      .filter(function(doc) {
+        const matchesSearch = !term || (
+          String(doc.title || '').toLowerCase().includes(term) ||
+          String(doc.category || '').toLowerCase().includes(term) ||
+          String(doc.file_type || '').toLowerCase().includes(term)
+        );
+        if (!matchesSearch) return false;
+
+        if (!matchesReportFilter(doc)) return false;
+        if (currentReportFilter === 'custom' && !matchesDateRange(doc, range.startTs, range.endTs)) return false;
+
+        return true;
+      })
+      .sort(function(a, b) {
+        const dateDiff = getDocumentTimestamp(a) - getDocumentTimestamp(b);
+        return currentSortOrder === 'oldest' ? dateDiff : -dateDiff;
+      });
+
+    currentVisibleCount = filtered.length;
+    renderDocuments(filtered);
+    updateSearchClearButtonState();
+    updateFilterSummary(range);
+  }
+
   function renderDocuments(docs) {
-    const grid = document.querySelector('[data-portal="document-grid"]');
-    if (!grid) return;
-    
-    // Find template card
-    const firstCard = grid.querySelector('[data-portal="document-item"]');
-    if (!firstCard) return;
-    
-    // Save template
-    const template = firstCard.cloneNode(true);
-    
-    const countBadge = document.querySelector('[data-portal="total-docs"]');
-    if (countBadge) countBadge.textContent = docs.length + ' documents';
-    
-    // Clear grid
-    grid.innerHTML = '';
-    
+    renderDocumentsIntoContainer(gridContainer, docs);
+    renderDocumentsIntoContainer(listContainer, docs);
+    updateCountBadge(docs.length);
+    updateEmptyState(docs.length);
+    updateLayoutVisibility();
+    hideLoadingStates();
+  }
+
+  function renderDocumentsIntoContainer(container, docs) {
+    if (!container) return;
+    const template = getContainerTemplate(container);
+    if (!template) return;
+
+    container.innerHTML = '';
     docs.forEach(function(doc) {
       const card = template.cloneNode(true);
-      
-      // Document Title
-      const title = card.querySelector('[data-portal="doc-title"]');
-      if (title) title.textContent = doc.title;
-      
-      // Document metadata
-      const fileType = card.querySelector('[data-portal="doc-type"]');
-      if (fileType) fileType.textContent = (doc.file_type || 'PDF').toUpperCase();
-      
-      const fileUrlParam = encodeURIComponent(doc.file_url || '');
-      
-      const fileSize = card.querySelector('[data-portal="doc-size"]');
-      if (fileSize) {
-        fileSize.textContent = doc.file_size_label || '';
-      }
-      
-      // Document date
-      const dateEl = card.querySelector('[data-portal="doc-date"]');
-      if (dateEl) {
-        const d = new Date(doc.published_date || doc.created_on);
-        if (!isNaN(d.getTime())) {
-          dateEl.textContent = d.toLocaleDateString('en-US', {month:'short', day:'2-digit', year:'numeric'});
-        } else {
-          dateEl.textContent = doc.published_date || '';
-        }
-      }
-      
-      // Document link
-      const titleParam = encodeURIComponent(doc.title || 'Document');
-      const downloadUrl = fileUrlParam ? (API_URL + '/proxy/file?url=' + fileUrlParam + '&action=download&filename=' + titleParam) : '#';
+      applyDocumentDataToCard(card, doc);
+      container.appendChild(card);
+    });
+  }
 
-      // Set href on the card itself if it's an anchor, otherwise find inner link
-      if (card.tagName === 'A') {
-          card.href = downloadUrl;
-          card.removeAttribute('target');
+  function getContainerTemplate(container) {
+    if (!container) return null;
+    if (container.__portalTemplate) return container.__portalTemplate;
+
+    const firstCard = container.querySelector('[data-portal="document-item"]');
+    if (!firstCard) return null;
+
+    container.__portalTemplate = firstCard.cloneNode(true);
+    return container.__portalTemplate;
+  }
+
+  function applyDocumentDataToCard(card, doc) {
+    const title = card.querySelector('[data-portal="doc-title"]');
+    if (title) title.textContent = doc.title || 'Untitled';
+
+    const fileType = card.querySelector('[data-portal="doc-type"]');
+    if (fileType) fileType.textContent = String(doc.file_type || 'PDF').toUpperCase();
+
+    const fileSize = card.querySelector('[data-portal="doc-size"]');
+    if (fileSize) {
+      fileSize.textContent = doc.file_size_label || '';
+    }
+
+    const dateEl = card.querySelector('[data-portal="doc-date"]');
+    if (dateEl) {
+      const d = new Date(doc.published_date || doc.created_on);
+      if (!isNaN(d.getTime())) {
+        dateEl.textContent = d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
       } else {
-          const innerLink = card.querySelector('[data-portal="doc-link"]');
-          if (innerLink) {
-              innerLink.href = downloadUrl;
-              innerLink.removeAttribute('target');
-          }
+        dateEl.textContent = doc.published_date || '';
       }
-      
-      // Add tracking click event
-      card.addEventListener('click', function() {
-        fetch(API_URL + '/documents/log-access', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ documentId: doc.id }),
-          credentials: 'include'
+    }
+
+    const fileUrlParam = encodeURIComponent(doc.file_url || '');
+    const titleParam = encodeURIComponent(doc.title || 'Document');
+    const downloadUrl = fileUrlParam
+      ? (API_URL + '/proxy/file?url=' + fileUrlParam + '&action=download&filename=' + titleParam)
+      : '#';
+    const viewUrl = fileUrlParam
+      ? (API_URL + '/proxy/file?url=' + fileUrlParam + '&action=view&filename=' + titleParam)
+      : '#';
+
+    const newMarkers = card.querySelectorAll('[data-portal="document-item-new-marker"]');
+    const showNew = isDocumentNew(doc);
+    newMarkers.forEach(function(marker) {
+      marker.style.display = showNew ? '' : 'none';
+    });
+
+    if (card.tagName === 'A') {
+      card.href = downloadUrl;
+      card.removeAttribute('target');
+    } else {
+      const innerLink = card.querySelector('[data-portal="doc-link"]');
+      if (innerLink && innerLink.tagName === 'A') {
+        innerLink.href = downloadUrl;
+        innerLink.removeAttribute('target');
+      }
+    }
+
+    const viewButton = card.querySelector('[data-portal="doc-view-button"]');
+    if (viewButton) {
+      viewButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (viewUrl === '#') return;
+        void openDocumentViewer(viewUrl, doc.title || 'Document');
+      });
+    }
+
+    card.addEventListener('click', function(e) {
+      const clickedViewButton = e.target && typeof e.target.closest === 'function'
+        ? e.target.closest('[data-portal="doc-view-button"]')
+        : null;
+      if (clickedViewButton) {
+        return;
+      }
+
+      const isCardAnchor = card.tagName === 'A';
+      const clickedLink = e.target && typeof e.target.closest === 'function' ? e.target.closest('a') : null;
+      const isLinkClick = isCardAnchor || Boolean(clickedLink);
+      const hasToken = Boolean(getStoredToken());
+
+      if (isLinkClick && hasToken && downloadUrl !== '#') {
+        e.preventDefault();
+        void logDocumentAccess(doc.id);
+        void downloadWithAuthToken(downloadUrl, doc.title || 'Document');
+        return;
+      }
+
+      if (isLinkClick) {
+        void logDocumentAccess(doc.id);
+      }
+    });
+  }
+
+  function updateCountBadge(count) {
+    if (countBadge) {
+      countBadge.textContent = count + ' documents';
+    }
+  }
+
+  function updateEmptyState(count) {
+    emptyStates.forEach(function(el) {
+      el.style.display = count === 0 ? '' : 'none';
+    });
+  }
+
+  function hideLoadingStates() {
+    if (loadingStateHandled) return;
+    loadingStateHandled = true;
+
+    loadingStates.forEach(function(el) {
+      el.style.transition = 'opacity 0.6s ease';
+      el.style.opacity = '0';
+      setTimeout(function() {
+        if (el.parentNode) {
+          el.parentNode.removeChild(el);
+        }
+      }, 600);
+    });
+  }
+
+  function setupLayoutSwitcher() {
+    activeLayout = getInitialLayout();
+    layoutButtons.forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        setActiveLayout(btn.getAttribute('data-layout'));
+      });
+    });
+    setActiveLayout(activeLayout);
+  }
+
+  function getInitialLayout() {
+    const activeBtn = document.querySelector('[data-layout].is-active');
+    if (activeBtn) {
+      const preferred = activeBtn.getAttribute('data-layout');
+      if (preferred === 'flex' || preferred === 'grid') return preferred;
+    }
+    return 'grid';
+  }
+
+  function setActiveLayout(layout) {
+    activeLayout = layout === 'flex' ? 'flex' : 'grid';
+    layoutButtons.forEach(function(btn) {
+      const isActive = btn.getAttribute('data-layout') === activeLayout;
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+    updateLayoutVisibility();
+  }
+
+  function updateLayoutVisibility() {
+    const hasDocs = currentVisibleCount > 0;
+    const useGrid = activeLayout === 'grid' || !listContainer;
+    const useList = activeLayout === 'flex' && !!listContainer;
+
+    if (gridContainer) {
+      gridContainer.style.display = hasDocs && useGrid ? '' : 'none';
+    }
+    if (listContainer) {
+      listContainer.style.display = hasDocs && useList ? '' : 'none';
+    }
+  }
+
+  function setupSearch() {
+    if (!searchInput) return;
+    searchClearButton = getSearchClearButton();
+    updateSearchClearButtonState();
+
+    searchInput.addEventListener('input', function(e) {
+      currentSearchTerm = e.target.value || '';
+      applyFiltersAndRender();
+    });
+
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+      }
+      if (e.key === 'Escape' && searchInput.value) {
+        e.preventDefault();
+        searchInput.value = '';
+        currentSearchTerm = '';
+        applyFiltersAndRender();
+      }
+    });
+
+    if (searchClearButton) {
+      searchClearButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        searchInput.value = '';
+        currentSearchTerm = '';
+        applyFiltersAndRender();
+        searchInput.focus();
+      });
+    }
+  }
+
+  function setupFilters() {
+    ensureFiltersUI();
+
+    sortSelect = document.querySelector('[data-portal="sort-select"]');
+    reportFilterButtons = Array.prototype.slice.call(document.querySelectorAll('[data-portal="report-filter"]'));
+    customDateControls = document.querySelector('[data-portal="custom-date-controls"]');
+    customDateStartInput = document.querySelector('[data-portal="custom-date-start"]');
+    customDateEndInput = document.querySelector('[data-portal="custom-date-end"]');
+    customDateApplyButton = document.querySelector('[data-portal="custom-date-apply"]');
+    filtersResetButton = document.querySelector('[data-portal="filters-reset"]');
+
+    if (sortSelect) {
+      currentSortOrder = normalizeSortOrder(sortSelect.value);
+      sortSelect.value = currentSortOrder;
+      sortSelect.addEventListener('change', function() {
+        currentSortOrder = normalizeSortOrder(sortSelect.value);
+        applyFiltersAndRender();
+      });
+    }
+
+    if (reportFilterButtons.length) {
+      const activeButton = reportFilterButtons.find(function(btn) {
+        return btn.classList.contains('is-active');
+      });
+      currentReportFilter = normalizeReportFilter(activeButton ? activeButton.getAttribute('data-filter-value') : 'all');
+
+      reportFilterButtons.forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          const value = normalizeReportFilter(btn.getAttribute('data-filter-value'));
+          setReportFilter(value);
         });
       });
-      
-      grid.appendChild(card);
-    });
-    
-    // Setup Search filtering
-    const searchInput = document.querySelector('[data-portal="search-input"]');
-    if (searchInput) {
-      searchInput.addEventListener('input', function(e) {
-        const term = e.target.value.toLowerCase();
-        const cards = grid.querySelectorAll('[data-portal="document-item"]');
-        let count = 0;
-        cards.forEach(function(c) {
-          const t = c.querySelector('[data-portal="doc-title"]');
-          if (t && t.textContent.toLowerCase().includes(term)) {
-            c.style.display = '';
-            count++;
-          } else {
-            c.style.display = 'none';
-          }
-        });
-        if (countBadge) countBadge.textContent = count + ' documents';
-        
-        // Update Empty State for Search Results
-        const emptyStates = document.querySelectorAll('[data-portal="empty-state"]');
-        emptyStates.forEach(function(el) {
-           el.style.display = count === 0 ? '' : 'none';
-        });
-        
-        // Hide the grid itself if empty
-        if (grid) {
-           grid.style.display = count === 0 ? 'none' : '';
+
+      syncReportFilterButtons();
+    }
+
+    if (customDateStartInput) {
+      customDateStart = String(customDateStartInput.value || '').trim();
+    }
+    if (customDateEndInput) {
+      customDateEnd = String(customDateEndInput.value || '').trim();
+    }
+
+    if (customDateApplyButton) {
+      customDateApplyButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        customDateStart = customDateStartInput ? String(customDateStartInput.value || '').trim() : '';
+        customDateEnd = customDateEndInput ? String(customDateEndInput.value || '').trim() : '';
+        applyFiltersAndRender();
+      });
+    }
+
+    [customDateStartInput, customDateEndInput].forEach(function(input) {
+      if (!input) return;
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          customDateStart = customDateStartInput ? String(customDateStartInput.value || '').trim() : '';
+          customDateEnd = customDateEndInput ? String(customDateEndInput.value || '').trim() : '';
+          applyFiltersAndRender();
         }
       });
-    }
-
-    // Hide Loading State with smooth fade out
-    const loadingStates = document.querySelectorAll('[data-portal="loading-state"]');
-    loadingStates.forEach(function(el) {
-       el.style.transition = 'opacity 0.6s ease';
-       el.style.opacity = '0';
-       
-       // Remove from DOM after fade out completes
-       setTimeout(function() {
-         if (el.parentNode) {
-           el.parentNode.removeChild(el);
-         }
-       }, 600);
     });
 
-    // Handle Empty State
-    const emptyStates = document.querySelectorAll('[data-portal="empty-state"]');
-    emptyStates.forEach(function(el) {
-       el.style.display = docs.length === 0 ? '' : 'none';
-    });
-    
-    // Hide the grid itself if no items
-    if (grid) {
-       grid.style.display = docs.length === 0 ? 'none' : '';
+    if (filtersResetButton) {
+      filtersResetButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        resetFilters();
+      });
     }
+
+    updateCustomDateControlsVisibility();
+  }
+
+  function ensureFiltersUI() {
+    const hasExistingControls =
+      document.querySelector('[data-portal="sort-select"]') ||
+      document.querySelector('[data-portal="report-filter"]');
+    if (hasExistingControls) return;
+
+    const mountPoint = getFiltersMountPoint();
+    if (!mountPoint || !mountPoint.parentNode) return;
+
+    const filters = document.createElement('section');
+    filters.setAttribute('data-portal', 'dashboard-filters');
+    filters.style.display = 'grid';
+    filters.style.gap = '12px';
+    filters.style.margin = '16px 0 20px';
+    filters.style.padding = '14px';
+    filters.style.border = '1px solid rgba(16, 40, 70, 0.12)';
+    filters.style.borderRadius = '16px';
+    filters.style.background = 'rgba(255, 255, 255, 0.8)';
+    filters.style.backdropFilter = 'blur(6px)';
+    filters.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#17365d;font-weight:600;">' +
+      '<span>Sort By</span>' +
+      '<select data-portal="sort-select" style="border:1px solid rgba(16,40,70,0.22);border-radius:10px;padding:8px 10px;background:#fff;color:#17365d;">' +
+      '<option value="newest">Descending (Latest First)</option>' +
+      '<option value="oldest">Ascending (Earliest First)</option>' +
+      '</select>' +
+      '</label>' +
+      '<button type="button" data-portal="filters-reset" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Reset</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+      '<button type="button" class="is-active" data-portal="report-filter" data-filter-value="all" aria-pressed="true" style="border:1px solid rgba(16,40,70,0.18);background:#17365d;color:#fff;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">All</button>' +
+      '<button type="button" data-portal="report-filter" data-filter-value="monthly" aria-pressed="false" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Monthly Reports</button>' +
+      '<button type="button" data-portal="report-filter" data-filter-value="quarterly" aria-pressed="false" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Quarterly Reports</button>' +
+      '<button type="button" data-portal="report-filter" data-filter-value="yearly" aria-pressed="false" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Yearly / Annual Reports</button>' +
+      '<button type="button" data-portal="report-filter" data-filter-value="custom" aria-pressed="false" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Custom Date Range</button>' +
+      '</div>' +
+      '<div data-portal="custom-date-controls" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;">' +
+      '<input type="date" data-portal="custom-date-start" aria-label="Custom start date" style="border:1px solid rgba(16,40,70,0.22);border-radius:10px;padding:8px 10px;background:#fff;color:#17365d;">' +
+      '<input type="date" data-portal="custom-date-end" aria-label="Custom end date" style="border:1px solid rgba(16,40,70,0.22);border-radius:10px;padding:8px 10px;background:#fff;color:#17365d;">' +
+      '<button type="button" data-portal="custom-date-apply" style="border:1px solid rgba(16,40,70,0.18);background:#17365d;color:#fff;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Apply Range</button>' +
+      '</div>' +
+      '<div data-portal="filter-summary" style="font-size:12px;color:#39597f;"></div>';
+
+    mountPoint.parentNode.insertBefore(filters, mountPoint.nextSibling);
+  }
+
+  function getFiltersMountPoint() {
+    if (searchInput && searchInput.parentElement) return searchInput.parentElement;
+    if (gridContainer && gridContainer.parentElement) return gridContainer.parentElement;
+    if (listContainer && listContainer.parentElement) return listContainer.parentElement;
+    return null;
+  }
+
+  function normalizeSortOrder(value) {
+    return String(value || '').toLowerCase() === 'oldest' ? 'oldest' : 'newest';
+  }
+
+  function normalizeReportFilter(value) {
+    const normalized = String(value || '').toLowerCase();
+    if (normalized === 'monthly' || normalized === 'quarterly' || normalized === 'yearly' || normalized === 'custom') {
+      return normalized;
+    }
+    return 'all';
+  }
+
+  function setReportFilter(value) {
+    currentReportFilter = normalizeReportFilter(value);
+    syncReportFilterButtons();
+    updateCustomDateControlsVisibility();
+    applyFiltersAndRender();
+  }
+
+  function syncReportFilterButtons() {
+    reportFilterButtons.forEach(function(btn) {
+      const value = normalizeReportFilter(btn.getAttribute('data-filter-value'));
+      const isActive = value === currentReportFilter;
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+
+      if (btn.style) {
+        btn.style.background = isActive ? '#17365d' : '#fff';
+        btn.style.color = isActive ? '#fff' : '#17365d';
+      }
+    });
+  }
+
+  function updateCustomDateControlsVisibility() {
+    if (!customDateControls) return;
+    customDateControls.style.display = currentReportFilter === 'custom' ? 'flex' : 'none';
+  }
+
+  function getCustomDateRangeState() {
+    return {
+      startTs: getDateBoundaryTimestamp(customDateStart, false),
+      endTs: getDateBoundaryTimestamp(customDateEnd, true),
+    };
+  }
+
+  function getDateBoundaryTimestamp(raw, isEndOfDay) {
+    const value = String(raw || '').trim();
+    if (!value) return 0;
+    const date = new Date(value + (isEndOfDay ? 'T23:59:59.999' : 'T00:00:00.000'));
+    const ts = date.getTime();
+    return Number.isFinite(ts) ? ts : 0;
+  }
+
+  function matchesDateRange(doc, startTs, endTs) {
+    const docTs = getDocumentTimestamp(doc);
+    if (!docTs) return false;
+    if (startTs && docTs < startTs) return false;
+    if (endTs && docTs > endTs) return false;
+    return true;
+  }
+
+  function matchesReportFilter(doc) {
+    if (currentReportFilter === 'all' || currentReportFilter === 'custom') return true;
+
+    const title = String(doc.title || '').toLowerCase();
+    const category = String(doc.category || '').toLowerCase();
+
+    if (currentReportFilter === 'monthly') {
+      return category.includes('monthly') || title.includes('monthly');
+    }
+
+    if (currentReportFilter === 'quarterly') {
+      return category.includes('quarter') ||
+        title.includes('quarter') ||
+        /\bq[1-4]\b/.test(title) ||
+        /\bq[1-4]\b/.test(category);
+    }
+
+    if (currentReportFilter === 'yearly') {
+      return category.includes('yearly') ||
+        category.includes('annual') ||
+        title.includes('yearly') ||
+        title.includes('annual');
+    }
+
+    return true;
+  }
+
+  function updateFilterSummary(range) {
+    const summary = document.querySelector('[data-portal="filter-summary"]');
+    if (!summary) return;
+
+    const reportLabel = currentReportFilter === 'all'
+      ? 'All reports'
+      : currentReportFilter === 'monthly'
+        ? 'Monthly reports'
+        : currentReportFilter === 'quarterly'
+          ? 'Quarterly reports'
+          : currentReportFilter === 'yearly'
+            ? 'Yearly / annual reports'
+            : 'Custom date range';
+
+    const sortLabel = currentSortOrder === 'oldest' ? 'Earliest first' : 'Latest first';
+    const rangeLabel = currentReportFilter !== 'custom'
+      ? ''
+      : ' | Range: ' +
+        (range.startTs ? new Date(range.startTs).toLocaleDateString('en-US') : 'Any') +
+        ' to ' +
+        (range.endTs ? new Date(range.endTs).toLocaleDateString('en-US') : 'Any');
+
+    summary.textContent = reportLabel + ' | ' + sortLabel + rangeLabel;
+  }
+
+  function resetFilters() {
+    currentSortOrder = 'newest';
+    currentReportFilter = 'all';
+    customDateStart = '';
+    customDateEnd = '';
+
+    if (sortSelect) {
+      sortSelect.value = currentSortOrder;
+    }
+    if (customDateStartInput) {
+      customDateStartInput.value = '';
+    }
+    if (customDateEndInput) {
+      customDateEndInput.value = '';
+    }
+
+    syncReportFilterButtons();
+    updateCustomDateControlsVisibility();
+    applyFiltersAndRender();
+  }
+
+  function getSearchClearButton() {
+    const existingButton = document.querySelector('[data-portal="search-clear"]');
+    if (existingButton) return existingButton;
+    if (!searchInput || !searchInput.parentElement) return null;
+
+    const wrapper = searchInput.parentElement;
+    const wrapperStyle = window.getComputedStyle(wrapper);
+    if (wrapperStyle.position === 'static') {
+      wrapper.style.position = 'relative';
+    }
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('aria-label', 'Clear search');
+    btn.setAttribute('data-portal', 'search-clear');
+    btn.textContent = '×';
+    btn.style.position = 'absolute';
+    btn.style.top = '50%';
+    btn.style.right = '12px';
+    btn.style.transform = 'translateY(-50%)';
+    btn.style.border = '0';
+    btn.style.background = 'transparent';
+    btn.style.color = 'currentColor';
+    btn.style.cursor = 'pointer';
+    btn.style.padding = '0 4px';
+    btn.style.fontSize = '18px';
+    btn.style.lineHeight = '1';
+    btn.style.opacity = '0.75';
+    btn.style.display = 'none';
+    btn.style.zIndex = '2';
+    searchInput.style.paddingRight = '36px';
+    wrapper.appendChild(btn);
+    return btn;
+  }
+
+  function updateSearchClearButtonState() {
+    if (!searchClearButton) return;
+    const hasValue = Boolean(currentSearchTerm && currentSearchTerm.trim());
+    searchClearButton.style.display = hasValue ? '' : 'none';
+  }
+
+  function isDocumentNew(doc) {
+    const docTs = getDocumentTimestamp(doc);
+    if (!docTs) return false;
+    if (!lastSeenAt) {
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+      return Date.now() - docTs <= sevenDaysMs;
+    }
+    return docTs > lastSeenAt;
+  }
+
+  function getDocumentTimestamp(doc) {
+    const raw = doc && (doc.published_date || doc.created_on);
+    if (!raw) return 0;
+    const ts = new Date(raw).getTime();
+    return Number.isFinite(ts) ? ts : 0;
+  }
+
+  function setupLastSeenTracking() {
+    const update = function() {
+      const now = Date.now();
+      setLastSeenAt(now);
+      lastSeenAt = now;
+    };
+
+    window.addEventListener('beforeunload', update);
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'hidden') {
+        update();
+      }
+    });
+  }
+
+  function openDocumentViewer(viewUrl, title) {
+    const modal = ensureViewerModal();
+    const frame = modal.querySelector('[data-portal="doc-view-frame"]');
+    const titleEl = modal.querySelector('[data-portal="doc-view-title"]');
+    if (!frame) return Promise.resolve();
+
+    if (titleEl) {
+      titleEl.textContent = title || 'Document Preview';
+    }
+
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    frame.src = '';
+
+    if (getStoredToken()) {
+      return authFetch(viewUrl)
+        .then(function(res) {
+          if (res.status === 401) {
+            redirectToLogin(true);
+            return null;
+          }
+          if (!res.ok) {
+            throw new Error('Preview failed with status ' + res.status);
+          }
+          return res.blob();
+        })
+        .then(function(blob) {
+          if (!blob) return;
+          const blobUrl = URL.createObjectURL(blob);
+          frame.src = blobUrl;
+          modal.__blobUrl = blobUrl;
+        })
+        .catch(function(err) {
+          console.error('Preview error:', err);
+          closeViewerModal();
+        });
+    }
+
+    frame.src = viewUrl;
+    return Promise.resolve();
+  }
+
+  function ensureViewerModal() {
+    let modal = document.querySelector('[data-portal="doc-view-modal"]');
+    if (modal) return modal;
+
+    modal = document.createElement('div');
+    modal.setAttribute('data-portal', 'doc-view-modal');
+    modal.style.position = 'fixed';
+    modal.style.inset = '0';
+    modal.style.zIndex = '9999';
+    modal.style.display = 'none';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+    modal.style.background = 'rgba(8, 18, 36, 0.45)';
+    modal.style.backdropFilter = 'blur(8px)';
+    modal.innerHTML =
+      '<div data-portal="doc-view-shell" style="width:min(960px,92vw);height:min(85vh,820px);background:#f9fbff;border:1px solid rgba(255,255,255,0.35);border-radius:28px;box-shadow:0 30px 80px rgba(8,18,36,0.35);overflow:hidden;display:flex;flex-direction:column;">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid rgba(16,40,70,0.12);background:linear-gradient(180deg,#ffffff,#f2f6ff);">' +
+      '<div data-portal="doc-view-title" style="font-size:15px;font-weight:600;color:#17365d;max-width:80%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Document Preview</div>' +
+      '<button type="button" data-portal="doc-view-close" aria-label="Close preview" style="border:0;background:#eaf0fb;color:#17365d;border-radius:999px;width:32px;height:32px;cursor:pointer;font-size:18px;line-height:1;">×</button>' +
+      '</div>' +
+      '<iframe data-portal="doc-view-frame" title="Document preview" style="border:0;width:100%;height:100%;background:#fff;"></iframe>' +
+      '</div>';
+
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        closeViewerModal();
+      }
+    });
+
+    const closeBtn = modal.querySelector('[data-portal="doc-view-close"]');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function() {
+        closeViewerModal();
+      });
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && modal.style.display !== 'none') {
+        closeViewerModal();
+      }
+    });
+
+    document.body.appendChild(modal);
+    return modal;
+  }
+
+  function closeViewerModal() {
+    const modal = document.querySelector('[data-portal="doc-view-modal"]');
+    if (!modal) return;
+
+    const frame = modal.querySelector('[data-portal="doc-view-frame"]');
+    if (frame) frame.src = '';
+
+    if (modal.__blobUrl) {
+      URL.revokeObjectURL(modal.__blobUrl);
+      modal.__blobUrl = '';
+    }
+
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  function logDocumentAccess(documentId) {
+    return authFetch(API_URL + '/documents/log-access', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documentId: documentId })
+    });
+  }
+
+  function downloadWithAuthToken(downloadUrl, fallbackName) {
+    return authFetch(downloadUrl)
+      .then(function(res) {
+        if (res.status === 401) {
+          redirectToLogin(true);
+          return null;
+        }
+        if (!res.ok) {
+          throw new Error('Download failed with status ' + res.status);
+        }
+        const disposition = res.headers.get('content-disposition') || '';
+        const fileName = extractFileName(disposition) || fallbackName || 'document';
+        return res.blob().then(function(blob) {
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(function() { URL.revokeObjectURL(blobUrl); }, 1000);
+        });
+      })
+      .catch(function(err) {
+        console.error('Download error:', err);
+      });
+  }
+
+  function extractFileName(disposition) {
+    if (!disposition) return '';
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match && utf8Match[1]) {
+      try {
+        return decodeURIComponent(utf8Match[1]);
+      } catch {
+        return utf8Match[1];
+      }
+    }
+
+    const plainMatch = disposition.match(/filename="?([^"]+)"?/i);
+    return plainMatch && plainMatch[1] ? plainMatch[1] : '';
   }
   
   // Setup Logout button
@@ -186,12 +902,10 @@
   logoutBtns.forEach(function(btn) {
       btn.addEventListener('click', function(e) {
         e.preventDefault();
-        fetch(API_URL + '/auth/logout', { method: 'POST', credentials: 'include' })
+        authFetch(API_URL + '/auth/logout', { method: 'POST' })
           .finally(function() {
-            window.location.href = '/app/login';
+            redirectToLogin(true);
           });
       });
   });
 })();
-
-// Force deploy update
