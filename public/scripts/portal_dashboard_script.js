@@ -1069,11 +1069,6 @@
   }
 
   function openCustomDatePicker() {
-    if (isMobileViewport()) {
-      openMobileDateRangePicker();
-      return;
-    }
-
     if (customDatePicker && typeof customDatePicker.show === 'function') {
       customDatePicker.show();
       return;
