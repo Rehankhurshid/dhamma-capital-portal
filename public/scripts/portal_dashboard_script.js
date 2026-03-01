@@ -35,6 +35,9 @@
   let customDatePicker = null;
   let customDatePickerReady = false;
   let customDateHostIsGenerated = false;
+  let mobileDateStartPicker = null;
+  let mobileDateEndPicker = null;
+  let mobilePendingDateStart = '';
   let filtersResetButton = null;
   let activeLayout = 'grid';
   let loadingStateHandled = false;
@@ -920,6 +923,7 @@
   function setupEmbeddedDateRangePicker() {
     ensureDatePickerHostContainer();
     ensureCustomDateControlsWiring();
+    ensureMobileDatePickers();
     updateCustomDateApplyState();
     updateDatePickerTriggerText();
     if (customDatePickerReady) return;
@@ -930,12 +934,13 @@
         if (customDatePicker) return;
 
         const pickerAnchor = getDatePickerAnchorElement();
+        const isCompactViewport = isMobileViewport();
         customDatePicker = new window.Litepicker({
           element: pickerAnchor,
           singleMode: false,
           autoApply: true,
-          numberOfMonths: 2,
-          numberOfColumns: 2,
+          numberOfMonths: isCompactViewport ? 1 : 2,
+          numberOfColumns: isCompactViewport ? 1 : 2,
           format: 'YYYY-MM-DD',
           setup: function(picker) {
             picker.on('selected', function(startDate, endDate) {
@@ -1064,6 +1069,11 @@
   }
 
   function openCustomDatePicker() {
+    if (isMobileViewport()) {
+      openMobileDateRangePicker();
+      return;
+    }
+
     if (customDatePicker && typeof customDatePicker.show === 'function') {
       customDatePicker.show();
       return;
@@ -1078,6 +1088,79 @@
       return customDateOpenButtons[0];
     }
     return customDateRangeInput;
+  }
+
+  function isMobileViewport() {
+    if (window.matchMedia && window.matchMedia('(max-width: 767px)').matches) return true;
+    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches && window.innerWidth <= 991) return true;
+    return false;
+  }
+
+  function ensureMobileDatePickers() {
+    if (!document.body) return;
+
+    if (!mobileDateStartPicker) {
+      mobileDateStartPicker = document.createElement('input');
+      mobileDateStartPicker.type = 'date';
+      mobileDateStartPicker.setAttribute('data-portal', 'mobile-date-start-picker');
+      setupHiddenMobilePickerStyles(mobileDateStartPicker);
+      mobileDateStartPicker.addEventListener('change', function() {
+        mobilePendingDateStart = String(mobileDateStartPicker.value || '').trim();
+        if (mobileDateEndPicker) {
+          mobileDateEndPicker.min = mobilePendingDateStart || '';
+          if (mobilePendingDateStart && mobileDateEndPicker.value && mobileDateEndPicker.value < mobilePendingDateStart) {
+            mobileDateEndPicker.value = mobilePendingDateStart;
+          }
+          openNativeDateInput(mobileDateEndPicker);
+        }
+      });
+      document.body.appendChild(mobileDateStartPicker);
+    }
+
+    if (!mobileDateEndPicker) {
+      mobileDateEndPicker = document.createElement('input');
+      mobileDateEndPicker.type = 'date';
+      mobileDateEndPicker.setAttribute('data-portal', 'mobile-date-end-picker');
+      setupHiddenMobilePickerStyles(mobileDateEndPicker);
+      mobileDateEndPicker.addEventListener('change', function() {
+        const start = String(mobilePendingDateStart || customDateStart || '').trim();
+        const end = String(mobileDateEndPicker.value || '').trim();
+        if (!start && !end) return;
+        setCustomDateRangeValues(start, end, true, true);
+      });
+      document.body.appendChild(mobileDateEndPicker);
+    }
+  }
+
+  function setupHiddenMobilePickerStyles(input) {
+    input.style.position = 'fixed';
+    input.style.left = '-9999px';
+    input.style.top = '0';
+    input.style.width = '1px';
+    input.style.height = '1px';
+    input.style.opacity = '0';
+    input.style.pointerEvents = 'none';
+  }
+
+  function openMobileDateRangePicker() {
+    ensureMobileDatePickers();
+    if (!mobileDateStartPicker || !mobileDateEndPicker) return;
+
+    mobilePendingDateStart = String(customDateStart || '').trim();
+    mobileDateStartPicker.value = String(customDateStart || '').trim();
+    mobileDateEndPicker.value = String(customDateEnd || '').trim();
+    mobileDateEndPicker.min = mobileDateStartPicker.value || '';
+
+    openNativeDateInput(mobileDateStartPicker);
+  }
+
+  function openNativeDateInput(input) {
+    if (!input) return;
+    if (typeof input.showPicker === 'function') {
+      input.showPicker();
+      return;
+    }
+    input.click();
   }
 
   function anchorRangeInputToTrigger(trigger) {
@@ -1321,6 +1404,14 @@
     if (customDateRangeInput) {
       customDateRangeInput.value = '';
     }
+    if (mobileDateStartPicker) {
+      mobileDateStartPicker.value = '';
+    }
+    if (mobileDateEndPicker) {
+      mobileDateEndPicker.value = '';
+      mobileDateEndPicker.min = '';
+    }
+    mobilePendingDateStart = '';
     if (customDatePicker && typeof customDatePicker.clearSelection === 'function') {
       customDatePicker.clearSelection();
     }
