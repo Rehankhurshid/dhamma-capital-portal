@@ -34,6 +34,7 @@
   let customDateOpenButtons = [];
   let customDatePicker = null;
   let customDatePickerReady = false;
+  let customDateHostIsGenerated = false;
   let filtersResetButton = null;
   let activeLayout = 'grid';
   let loadingStateHandled = false;
@@ -427,6 +428,7 @@
     sortOptionLinks = getSortOptionLinks();
     reportFilterButtons = getReportFilterButtons();
     customDateControls = document.querySelector('[data-portal="custom-date-controls"]');
+    customDateHostIsGenerated = customDateControls ? customDateControls.getAttribute('data-portal-generated-host') === 'true' : false;
     customDateStartInput = document.querySelector('[data-portal="custom-date-start"]');
     customDateEndInput = document.querySelector('[data-portal="custom-date-end"]');
     customDateApplyButton = document.querySelector('[data-portal="custom-date-apply"]');
@@ -791,11 +793,15 @@
 
   function updateCustomDateControlsVisibility() {
     if (!customDateControls) return;
+    if (customDateHostIsGenerated) {
+      customDateControls.style.display = 'none';
+      return;
+    }
     customDateControls.style.display = currentReportFilter === 'custom' ? 'flex' : 'none';
   }
 
   function setupEmbeddedDateRangePicker() {
-    if (!customDateControls) return;
+    ensureDatePickerHostContainer();
     ensureCustomDateControlsWiring();
     updateCustomDateApplyState();
     if (customDatePickerReady) return;
@@ -816,11 +822,11 @@
             picker.on('selected', function(startDate, endDate) {
               const start = startDate && typeof startDate.format === 'function' ? startDate.format('YYYY-MM-DD') : '';
               const end = endDate && typeof endDate.format === 'function' ? endDate.format('YYYY-MM-DD') : '';
-              setCustomDateRangeValues(start, end, true);
+              setCustomDateRangeValues(start, end, true, true);
             });
 
             picker.on('clear:selection', function() {
-              setCustomDateRangeValues('', '', false);
+              setCustomDateRangeValues('', '', false, true);
             });
           }
         });
@@ -833,6 +839,22 @@
       .catch(function(err) {
         console.warn('Litepicker initialization failed:', err);
       });
+  }
+
+  function ensureDatePickerHostContainer() {
+    if (customDateControls) return;
+
+    customDateControls = document.createElement('div');
+    customDateControls.setAttribute('data-portal-generated-host', 'true');
+    customDateControls.style.display = 'none';
+    customDateControls.style.position = 'fixed';
+    customDateControls.style.width = '1px';
+    customDateControls.style.height = '1px';
+    customDateControls.style.overflow = 'hidden';
+    customDateControls.style.opacity = '0';
+    customDateControls.style.pointerEvents = 'none';
+    document.body.appendChild(customDateControls);
+    customDateHostIsGenerated = true;
   }
 
   function ensureCustomDateControlsWiring() {
@@ -854,7 +876,7 @@
       customDateRangeInput.style.background = '#fff';
       customDateRangeInput.style.color = '#17365d';
       customDateRangeInput.style.minWidth = '220px';
-      if (customDateOpenButton) {
+      if (customDateOpenButton || customDateOpenButtons.length || customDateHostIsGenerated) {
         customDateRangeInput.style.position = 'absolute';
         customDateRangeInput.style.width = '1px';
         customDateRangeInput.style.height = '1px';
@@ -885,7 +907,7 @@
     }
   }
 
-  function setCustomDateRangeValues(start, end, syncInputText) {
+  function setCustomDateRangeValues(start, end, syncInputText, shouldApply) {
     if (customDateStartInput) customDateStartInput.value = start || '';
     if (customDateEndInput) customDateEndInput.value = end || '';
     customDateStart = start || '';
@@ -894,6 +916,9 @@
       syncRangeInputFromDates();
     }
     updateCustomDateApplyState();
+    if (shouldApply) {
+      applyFiltersAndRender();
+    }
   }
 
   function syncRangeInputFromDates() {
@@ -914,6 +939,9 @@
   }
 
   function openCustomDatePicker() {
+    if (currentReportFilter !== 'custom') {
+      setReportFilter('custom');
+    }
     if (customDatePicker && typeof customDatePicker.show === 'function') {
       customDatePicker.show();
       return;
