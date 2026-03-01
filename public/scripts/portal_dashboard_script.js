@@ -697,7 +697,17 @@
       (toggle && toggle.getAttribute('aria-expanded') === 'true') ||
       (list && list.classList.contains('w--open'));
 
-    // Use Webflow's own toggle interaction to keep internal dropdown state in sync.
+    // Prefer an outside click so Webflow closes via native handler.
+    if (isOpen && document.body) {
+      window.setTimeout(function() {
+        document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+        document.body.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+        document.body.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      }, 0);
+      return;
+    }
+
+    // Fallback: click the toggle if outside click does not apply.
     if (isOpen && toggle && typeof toggle.click === 'function') {
       window.setTimeout(function() {
         toggle.click();
