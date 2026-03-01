@@ -26,6 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let originalButtonText = 'Login';
     let isSubmitting = false;
 
+    initLoginVisualEffects();
+
     if (submitButton) {
         // If button is an input element, save its value, otherwise save textContent
         originalButtonText = submitButton.value || submitButton.textContent || 'Login';
@@ -184,5 +186,202 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.warn('Could not clear auth token:', err);
         }
+    }
+
+    function initLoginVisualEffects() {
+        injectVisualStyles();
+        const visualHost = resolveVisualHost();
+        if (!visualHost) return;
+        if (visualHost.getAttribute('data-portal-visual-enhanced') === 'true') return;
+        visualHost.setAttribute('data-portal-visual-enhanced', 'true');
+
+        visualHost.classList.add('portal-login-visual-host');
+        visualHost.style.setProperty('--portal-light-x', '52%');
+        visualHost.style.setProperty('--portal-light-y', '36%');
+
+        const computed = window.getComputedStyle(visualHost);
+        if (computed.position === 'static') {
+            visualHost.style.position = 'relative';
+        }
+        if (computed.overflow === 'visible') {
+            visualHost.style.overflow = 'hidden';
+        }
+
+        const visualImage = resolveVisualImage(visualHost);
+        if (visualImage) {
+            visualImage.classList.add('portal-login-visual-image');
+        }
+
+        const shader = document.createElement('div');
+        shader.className = 'portal-login-visual-shader';
+        shader.setAttribute('aria-hidden', 'true');
+
+        const aurora = document.createElement('div');
+        aurora.className = 'portal-login-visual-aurora';
+        aurora.setAttribute('aria-hidden', 'true');
+
+        const grain = document.createElement('div');
+        grain.className = 'portal-login-visual-grain';
+        grain.setAttribute('aria-hidden', 'true');
+
+        visualHost.appendChild(shader);
+        visualHost.appendChild(aurora);
+        visualHost.appendChild(grain);
+
+        let rafId = 0;
+        const updateLightPosition = (event) => {
+            const rect = visualHost.getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+            const x = ((event.clientX - rect.left) / rect.width) * 100;
+            const y = ((event.clientY - rect.top) / rect.height) * 100;
+            visualHost.style.setProperty('--portal-light-x', `${Math.max(0, Math.min(100, x)).toFixed(2)}%`);
+            visualHost.style.setProperty('--portal-light-y', `${Math.max(0, Math.min(100, y)).toFixed(2)}%`);
+        };
+
+        visualHost.addEventListener('pointermove', (event) => {
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = requestAnimationFrame(() => updateLightPosition(event));
+        });
+
+        visualHost.addEventListener('pointerleave', () => {
+            visualHost.style.setProperty('--portal-light-x', '52%');
+            visualHost.style.setProperty('--portal-light-y', '36%');
+        });
+    }
+
+    function resolveVisualHost() {
+        const configuredSelector = String(portalConfig.loginVisualSelector || '').trim();
+        if (configuredSelector) {
+            const configuredElement = document.querySelector(configuredSelector);
+            if (configuredElement) return configuredElement;
+        }
+
+        const candidateImages = Array.from(document.querySelectorAll('img')).filter((img) => {
+            const rect = img.getBoundingClientRect();
+            const area = rect.width * rect.height;
+            return area > 140000 && rect.right > window.innerWidth * 0.45 && rect.bottom > 0;
+        });
+
+        candidateImages.sort((a, b) => {
+            const aRect = a.getBoundingClientRect();
+            const bRect = b.getBoundingClientRect();
+            return (bRect.width * bRect.height) - (aRect.width * aRect.height);
+        });
+
+        const winner = candidateImages[0];
+        if (!winner) return null;
+
+        let host = winner.parentElement;
+        while (host && host !== document.body) {
+            const rect = host.getBoundingClientRect();
+            if (rect.width >= 320 && rect.height >= 320) break;
+            host = host.parentElement;
+        }
+
+        return host || winner.parentElement;
+    }
+
+    function resolveVisualImage(host) {
+        const images = Array.from(host.querySelectorAll('img'));
+        if (!images.length) return null;
+        images.sort((a, b) => {
+            const aRect = a.getBoundingClientRect();
+            const bRect = b.getBoundingClientRect();
+            return (bRect.width * bRect.height) - (aRect.width * aRect.height);
+        });
+        return images[0];
+    }
+
+    function injectVisualStyles() {
+        if (document.getElementById('portal-login-visual-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'portal-login-visual-styles';
+        style.textContent = `
+            .portal-login-visual-host {
+                isolation: isolate;
+                transform: translateZ(0);
+                --portal-light-x: 52%;
+                --portal-light-y: 36%;
+            }
+
+            .portal-login-visual-host .portal-login-visual-image {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                transform-origin: 50% 50%;
+                animation: portalVisualImageDrift 18s ease-in-out infinite alternate;
+            }
+
+            .portal-login-visual-shader,
+            .portal-login-visual-aurora,
+            .portal-login-visual-grain {
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+            }
+
+            .portal-login-visual-shader {
+                background:
+                    linear-gradient(126deg, rgba(8, 46, 86, 0.38) 0%, rgba(16, 78, 122, 0.14) 38%, rgba(240, 247, 255, 0.06) 64%, rgba(8, 38, 72, 0.3) 100%),
+                    radial-gradient(circle at 14% 22%, rgba(255, 255, 255, 0.13), transparent 48%);
+                mix-blend-mode: multiply;
+                opacity: 0.82;
+                animation: portalVisualShaderShift 16s ease-in-out infinite alternate;
+            }
+
+            .portal-login-visual-aurora {
+                background:
+                    radial-gradient(540px 360px at var(--portal-light-x) var(--portal-light-y), rgba(138, 195, 246, 0.28), transparent 65%),
+                    radial-gradient(460px 300px at 72% 84%, rgba(255, 255, 255, 0.24), transparent 70%);
+                mix-blend-mode: screen;
+                filter: blur(2px);
+                opacity: 0.7;
+                animation: portalVisualAuroraPulse 11s ease-in-out infinite;
+            }
+
+            .portal-login-visual-grain {
+                background-image:
+                    radial-gradient(circle at 18% 14%, rgba(255, 255, 255, 0.11) 0 1px, transparent 1px 4px),
+                    radial-gradient(circle at 74% 76%, rgba(7, 31, 59, 0.1) 0 1px, transparent 1px 4px);
+                background-size: 170px 170px, 200px 200px;
+                mix-blend-mode: soft-light;
+                opacity: 0.22;
+                animation: portalVisualGrainShift 2.8s steps(10) infinite;
+            }
+
+            @keyframes portalVisualImageDrift {
+                0% { transform: scale(1.02) translate3d(-0.6%, -0.2%, 0); }
+                50% { transform: scale(1.05) translate3d(0.4%, -1.1%, 0); }
+                100% { transform: scale(1.03) translate3d(0.9%, 0.4%, 0); }
+            }
+
+            @keyframes portalVisualShaderShift {
+                0% { transform: translate3d(-1.4%, 0.2%, 0) scale(1.02); opacity: 0.78; }
+                100% { transform: translate3d(1.8%, -0.5%, 0) scale(1.05); opacity: 0.9; }
+            }
+
+            @keyframes portalVisualAuroraPulse {
+                0%, 100% { opacity: 0.56; transform: scale(1); }
+                50% { opacity: 0.8; transform: scale(1.03); }
+            }
+
+            @keyframes portalVisualGrainShift {
+                0% { transform: translate3d(0, 0, 0); }
+                100% { transform: translate3d(3%, -3%, 0); }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                .portal-login-visual-host .portal-login-visual-image,
+                .portal-login-visual-shader,
+                .portal-login-visual-aurora,
+                .portal-login-visual-grain {
+                    animation: none !important;
+                }
+                .portal-login-visual-aurora {
+                    opacity: 0.5;
+                }
+            }
+        `;
+        document.head.appendChild(style);
     }
 });
