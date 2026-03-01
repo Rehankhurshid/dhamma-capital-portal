@@ -1409,28 +1409,45 @@
   function matchesReportFilter(doc) {
     if (currentReportFilter === 'all') return true;
 
-    const title = String(doc.title || '').toLowerCase();
-    const category = String(doc.category || '').toLowerCase();
+    const category = extractCategoryFilterText(doc);
+    if (!category) return false;
 
     if (currentReportFilter === 'monthly') {
-      return category.includes('monthly') || title.includes('monthly');
+      return category.includes('monthly');
     }
 
     if (currentReportFilter === 'quarterly') {
       return category.includes('quarter') ||
-        title.includes('quarter') ||
-        /\bq[1-4]\b/.test(title) ||
         /\bq[1-4]\b/.test(category);
     }
 
     if (currentReportFilter === 'yearly') {
       return category.includes('yearly') ||
-        category.includes('annual') ||
-        title.includes('yearly') ||
-        title.includes('annual');
+        category.includes('annual');
     }
 
     return true;
+  }
+
+  function extractCategoryFilterText(doc) {
+    const raw = doc && doc.category;
+    return normalizeCategoryValue(raw);
+  }
+
+  function normalizeCategoryValue(value) {
+    if (value == null) return '';
+    if (Array.isArray(value)) {
+      return value.map(normalizeCategoryValue).filter(Boolean).join(' ').toLowerCase();
+    }
+    if (typeof value === 'object') {
+      return [
+        value.name,
+        value.label,
+        value.value,
+        value.slug
+      ].map(normalizeCategoryValue).filter(Boolean).join(' ').toLowerCase();
+    }
+    return String(value).toLowerCase().trim();
   }
 
   function updateFilterSummary(range) {
