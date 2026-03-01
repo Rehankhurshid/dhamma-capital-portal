@@ -719,6 +719,10 @@
   function getSortDropdownToggle() {
     const sortControl = document.querySelector('[data-portal="sort-select"]:not(select):not(input):not(textarea)');
     if (!sortControl) return null;
+    const customToggle = sortControl.querySelector('.dropdown1_toggle');
+    if (customToggle) {
+      return customToggle;
+    }
     if (sortControl.classList.contains('w-dropdown-toggle')) {
       return sortControl;
     }
