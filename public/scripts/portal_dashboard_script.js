@@ -348,6 +348,10 @@
         return;
       }
 
+      const clickedDownloadButton = e.target && typeof e.target.closest === 'function'
+        ? e.target.closest('[data-portal="doc-download-button"], [data-action="download"], .doc-download-button')
+        : null;
+
       const isCardAnchor = card.tagName === 'A';
       const clickedLink = e.target && typeof e.target.closest === 'function' ? e.target.closest('a') : null;
       const isLinkClick = isCardAnchor || Boolean(clickedLink);
@@ -356,7 +360,19 @@
       if (isLinkClick && hasToken && downloadUrl !== '#') {
         e.preventDefault();
         void logDocumentAccess(doc.id);
-        void downloadWithAuthToken(downloadUrl, doc.title || 'Document');
+        const downloadTarget = clickedDownloadButton || clickedLink;
+        setDownloadProcessingState(downloadTarget, true);
+        void downloadWithAuthToken(downloadUrl, doc.title || 'Document')
+          .then(function(success) {
+            if (success) {
+              showPortalToast('Download started');
+            }
+          })
+          .finally(function() {
+            window.setTimeout(function() {
+              setDownloadProcessingState(downloadTarget, false);
+            }, 900);
+          });
         return;
       }
 
@@ -1730,7 +1746,7 @@
       .then(function(res) {
         if (res.status === 401) {
           redirectToLogin(true);
-          return null;
+          return false;
         }
         if (!res.ok) {
           throw new Error('Download failed with status ' + res.status);
@@ -1746,11 +1762,99 @@
           a.click();
           a.remove();
           setTimeout(function() { URL.revokeObjectURL(blobUrl); }, 1000);
+          return true;
         });
       })
       .catch(function(err) {
         console.error('Download error:', err);
+        showPortalToast('Download failed', true);
+        return false;
       });
+  }
+
+  function setDownloadProcessingState(target, active) {
+    if (!target) return;
+
+    target.classList.toggle('is-processing', Boolean(active));
+    target.setAttribute('data-download-processing', active ? 'true' : 'false');
+    target.setAttribute('aria-busy', active ? 'true' : 'false');
+
+    const iconTarget = target.querySelector('[data-portal="doc-download-icon"], .doc-download-icon, [data-icon="download"]');
+    if (iconTarget) {
+      if (!iconTarget.getAttribute('data-download-original-html')) {
+        iconTarget.setAttribute('data-download-original-html', iconTarget.innerHTML);
+      }
+      if (active) {
+        iconTarget.innerHTML = '&#9711;';
+        iconTarget.classList.add('is-spinning');
+      } else {
+        const original = iconTarget.getAttribute('data-download-original-html');
+        if (original) {
+          iconTarget.innerHTML = original;
+        }
+        iconTarget.classList.remove('is-spinning');
+      }
+    }
+
+    const labelTarget = target.querySelector('[data-portal="doc-download-label"]');
+    if (labelTarget) {
+      if (!labelTarget.getAttribute('data-download-original-label')) {
+        labelTarget.setAttribute('data-download-original-label', String(labelTarget.textContent || '').trim() || 'Download');
+      }
+      labelTarget.textContent = active ? 'Processing…' : (labelTarget.getAttribute('data-download-original-label') || 'Download');
+    }
+  }
+
+  function showPortalToast(message, isError) {
+    const host = ensureToastHost();
+    if (!host) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'portal-toast' + (isError ? ' is-error' : '');
+    toast.textContent = message;
+    host.appendChild(toast);
+
+    window.setTimeout(function() {
+      toast.classList.add('is-visible');
+    }, 10);
+
+    window.setTimeout(function() {
+      toast.classList.remove('is-visible');
+      window.setTimeout(function() {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 220);
+    }, 1800);
+  }
+
+  function ensureToastHost() {
+    let host = document.querySelector('[data-portal="toast-host"]');
+    if (host) return host;
+    if (!document.body) return null;
+
+    host = document.createElement('div');
+    host.setAttribute('data-portal', 'toast-host');
+    host.style.position = 'fixed';
+    host.style.right = '16px';
+    host.style.bottom = '16px';
+    host.style.display = 'grid';
+    host.style.gap = '8px';
+    host.style.zIndex = '10001';
+    host.style.pointerEvents = 'none';
+    document.body.appendChild(host);
+
+    if (!document.getElementById('portal-toast-styles')) {
+      const style = document.createElement('style');
+      style.id = 'portal-toast-styles';
+      style.textContent =
+        '.portal-toast{pointer-events:none;opacity:0;transform:translateY(8px);transition:opacity .2s ease,transform .2s ease;background:#17365d;color:#fff;padding:10px 12px;border-radius:10px;font-size:13px;box-shadow:0 10px 26px rgba(0,0,0,.18);}' +
+        '.portal-toast.is-visible{opacity:1;transform:translateY(0);}' +
+        '.portal-toast.is-error{background:#9b1c1c;}' +
+        '.is-spinning{display:inline-block;animation:portalSpin .8s linear infinite;}' +
+        '@keyframes portalSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
+      document.head.appendChild(style);
+    }
+
+    return host;
   }
 
   function extractFileName(disposition) {
