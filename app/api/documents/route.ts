@@ -5,6 +5,33 @@ import {
     extractReferenceIds, extractFileUrl,
 } from "@/app/lib/api";
 
+function extractOptionText(value: unknown): string {
+    if (value === null || value === undefined) return "";
+
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        return sanitizeText(value);
+    }
+
+    if (Array.isArray(value)) {
+        for (const part of value) {
+            const parsed = extractOptionText(part);
+            if (parsed) return parsed;
+        }
+        return "";
+    }
+
+    if (typeof value === "object") {
+        const v = value as Record<string, unknown>;
+        const candidates = [v.name, v.label, v.value, v.slug, v.title];
+        for (const candidate of candidates) {
+            const parsed = extractOptionText(candidate);
+            if (parsed) return parsed;
+        }
+    }
+
+    return "";
+}
+
 
 
 
@@ -30,7 +57,12 @@ export async function GET(req: NextRequest) {
                 const scope = normalizeScope(getField(fd, ["investor_type_scope", "investor-type-scope"], "both"), cfg) || "both";
                 const isVisible = parseBoolean(getField(fd, ["is_visible", "is-visible"], true), true);
                 const title = sanitizeText(getField(fd, ["title", "name"], "Untitled Document"));
-                const category = sanitizeText(getField(fd, ["category"], "Other"));
+                const reportTypeRaw = getField(
+                    fd,
+                    ["type_of_report", "type-of-report", "report_type", "report-type", "category"],
+                    "Other"
+                );
+                const category = sanitizeText(extractOptionText(reportTypeRaw) || "Other");
                 // Prefer explicit CMS date field; fall back to legacy published_date, then system timestamps.
                 const documentDate = sanitizeText(
                     getField(
