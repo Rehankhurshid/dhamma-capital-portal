@@ -201,6 +201,7 @@
     renderDocuments(filtered);
     updateSearchClearButtonState();
     updateFilterSummary(range);
+    updateAppliedStateIndicators(range, filtered.length);
   }
 
   function renderDocuments(docs) {
@@ -627,6 +628,7 @@
       sortDropdown.setAttribute('data-sort-value', currentSortOrder);
       updateSortDropdownLabel(selectedOptionElement);
     }
+    syncSortAppliedState();
     if (!sortOptionLinks.length) return;
 
     sortOptionLinks.forEach(function(link) {
@@ -638,6 +640,27 @@
       link.setAttribute('aria-current', isActive ? 'true' : 'false');
       link.setAttribute('aria-selected', isActive ? 'true' : 'false');
     });
+  }
+
+  function syncSortAppliedState() {
+    const isActive = currentSortOrder !== 'newest';
+
+    if (sortSelect) {
+      sortSelect.classList.toggle('is-active', isActive);
+      sortSelect.setAttribute('data-sort-active', isActive ? 'true' : 'false');
+    }
+
+    if (!sortDropdown) return;
+
+    const toggle = getSortDropdownToggle();
+    sortDropdown.classList.toggle('is-active', isActive);
+    sortDropdown.setAttribute('data-sort-active', isActive ? 'true' : 'false');
+
+    if (toggle) {
+      toggle.classList.toggle('is-active', isActive);
+      toggle.setAttribute('data-sort-active', isActive ? 'true' : 'false');
+      toggle.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    }
   }
 
   function updateSortDropdownLabel(selectedOptionElement) {
@@ -1394,6 +1417,45 @@
         (range.endTs ? new Date(range.endTs).toLocaleDateString('en-US') : 'Any');
 
     summary.textContent = reportLabel + ' | ' + sortLabel + rangeLabel;
+  }
+
+  function hasAppliedFiltersOrSort(range) {
+    const hasSearch = Boolean(String(currentSearchTerm || '').trim());
+    const hasReportFilter = currentReportFilter !== 'all';
+    const hasSort = currentSortOrder !== 'newest';
+    const hasRange = Boolean(range && range.hasActiveRange);
+    return hasSearch || hasReportFilter || hasSort || hasRange;
+  }
+
+  function updateAppliedStateIndicators(range, visibleCount) {
+    const hasApplied = hasAppliedFiltersOrSort(range);
+
+    if (document.body) {
+      document.body.setAttribute('data-portal-filters-applied', hasApplied ? 'true' : 'false');
+    }
+
+    const filtersContainer = document.querySelector('[data-portal="dashboard-filters"]');
+    if (filtersContainer) {
+      filtersContainer.classList.toggle('is-active', hasApplied);
+      filtersContainer.setAttribute('data-filters-applied', hasApplied ? 'true' : 'false');
+    }
+
+    const indicators = document.querySelectorAll('[data-portal="filters-applied-indicator"]');
+    indicators.forEach(function(node) {
+      node.classList.toggle('is-active', hasApplied);
+      node.setAttribute('data-filters-applied', hasApplied ? 'true' : 'false');
+
+      if (!node.getAttribute('data-default-indicator-label')) {
+        node.setAttribute('data-default-indicator-label', String(node.textContent || '').trim());
+      }
+
+      if (hasApplied) {
+        const label = visibleCount === 1 ? '1 result' : String(visibleCount) + ' results';
+        node.textContent = label + ' matching active filters/sort';
+      } else {
+        node.textContent = node.getAttribute('data-default-indicator-label') || '';
+      }
+    });
   }
 
   function resetFilters() {
