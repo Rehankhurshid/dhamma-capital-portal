@@ -693,7 +693,19 @@
       : sortDropdown.closest('.w-dropdown') || sortDropdown;
     const toggle = container.querySelector('.w-dropdown-toggle');
     const list = container.querySelector('.w-dropdown-list');
+    const isOpen = container.classList.contains('w--open') ||
+      (toggle && toggle.getAttribute('aria-expanded') === 'true') ||
+      (list && list.classList.contains('w--open'));
 
+    // Use Webflow's own toggle interaction to keep internal dropdown state in sync.
+    if (isOpen && toggle && typeof toggle.click === 'function') {
+      window.setTimeout(function() {
+        toggle.click();
+      }, 0);
+      return;
+    }
+
+    // Fallback for non-Webflow dropdown markup.
     container.classList.remove('w--open');
     if (toggle) {
       toggle.classList.remove('w--open');
