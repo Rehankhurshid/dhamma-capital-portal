@@ -29,6 +29,9 @@
   let customDateStartInput = null;
   let customDateEndInput = null;
   let customDateApplyButton = null;
+  let customDateRangeInput = null;
+  let customDatePicker = null;
+  let customDatePickerReady = false;
   let filtersResetButton = null;
   let activeLayout = 'grid';
   let loadingStateHandled = false;
@@ -420,12 +423,14 @@
     sortSelect = document.querySelector('select[data-portal="sort-select"], input[data-portal="sort-select"]');
     sortDropdown = document.querySelector('[data-portal="sort-select"]:not(select):not(input):not(textarea)');
     sortOptionLinks = getSortOptionLinks();
-    reportFilterButtons = Array.prototype.slice.call(document.querySelectorAll('[data-portal="report-filter"]'));
+    reportFilterButtons = getReportFilterButtons();
     customDateControls = document.querySelector('[data-portal="custom-date-controls"]');
     customDateStartInput = document.querySelector('[data-portal="custom-date-start"]');
     customDateEndInput = document.querySelector('[data-portal="custom-date-end"]');
     customDateApplyButton = document.querySelector('[data-portal="custom-date-apply"]');
+    customDateRangeInput = document.querySelector('[data-portal="custom-date-range"]');
     filtersResetButton = document.querySelector('[data-portal="filters-reset"]');
+    setupEmbeddedDateRangePicker();
 
     if (sortSelect) {
       currentSortOrder = normalizeSortOrder(sortSelect.value);
@@ -493,7 +498,19 @@
           applyFiltersAndRender();
         }
       });
+      input.addEventListener('input', function() {
+        updateCustomDateApplyState();
+      });
     });
+
+    if (customDateRangeInput) {
+      customDateRangeInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && customDateApplyButton && !customDateApplyButton.disabled) {
+          e.preventDefault();
+          customDateApplyButton.click();
+        }
+      });
+    }
 
     if (filtersResetButton) {
       filtersResetButton.addEventListener('click', function(e) {
@@ -503,6 +520,7 @@
     }
 
     updateCustomDateControlsVisibility();
+    updateCustomDateApplyState();
   }
 
   function ensureFiltersUI() {
@@ -545,6 +563,7 @@
       '<button type="button" data-portal="report-filter" data-filter-value="custom" aria-pressed="false" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Custom Date Range</button>' +
       '</div>' +
       '<div data-portal="custom-date-controls" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;">' +
+      '<input type="text" data-portal="custom-date-range" readonly aria-label="Custom date range" placeholder="Select date range" style="border:1px solid rgba(16,40,70,0.22);border-radius:10px;padding:8px 10px;background:#fff;color:#17365d;min-width:220px;">' +
       '<input type="date" data-portal="custom-date-start" aria-label="Custom start date" style="border:1px solid rgba(16,40,70,0.22);border-radius:10px;padding:8px 10px;background:#fff;color:#17365d;">' +
       '<input type="date" data-portal="custom-date-end" aria-label="Custom end date" style="border:1px solid rgba(16,40,70,0.22);border-radius:10px;padding:8px 10px;background:#fff;color:#17365d;">' +
       '<button type="button" data-portal="custom-date-apply" style="border:1px solid rgba(16,40,70,0.18);background:#17365d;color:#fff;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Apply Range</button>' +
@@ -639,6 +658,76 @@
     return '';
   }
 
+  function getReportFilterButtons() {
+    const candidates = Array.prototype.slice.call(
+      document.querySelectorAll('[data-portal="report-filter"], .dashboard-search_bottom-wrap .filter-button')
+    );
+    const seen = new Set();
+    const controls = [];
+
+    candidates.forEach(function(node) {
+      const control = resolveReportFilterControl(node);
+      if (!control || seen.has(control)) return;
+
+      const normalizedValue = normalizeReportFilter(
+        control.getAttribute('data-filter-value') ||
+        node.getAttribute('data-filter-value') ||
+        inferReportFilterValue(control) ||
+        inferReportFilterValue(node)
+      );
+
+      control.setAttribute('data-portal', 'report-filter');
+      control.setAttribute('data-filter-value', normalizedValue);
+
+      if (!control.hasAttribute('aria-pressed')) {
+        const isActive = control.classList.contains('is-active') || normalizedValue === 'all';
+        control.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      }
+
+      // Keep attributes on the clickable parent control to avoid mis-binding on nested text wrappers.
+      if (node !== control && node.getAttribute('data-portal') === 'report-filter') {
+        node.removeAttribute('data-portal');
+        node.removeAttribute('data-filter-value');
+        node.removeAttribute('aria-pressed');
+      }
+
+      seen.add(control);
+      controls.push(control);
+    });
+
+    return controls;
+  }
+
+  function resolveReportFilterControl(node) {
+    if (!node || !node.tagName) return null;
+
+    const tag = node.tagName.toLowerCase();
+    const isClickable = tag === 'a' || tag === 'button';
+    if (isClickable && (node.classList.contains('filter-button') || node.getAttribute('data-portal') === 'report-filter')) {
+      return node;
+    }
+
+    const closestClickable = node.closest('a,button');
+    if (closestClickable && (closestClickable.classList.contains('filter-button') || closestClickable.getAttribute('data-portal') === 'report-filter')) {
+      return closestClickable;
+    }
+
+    return null;
+  }
+
+  function inferReportFilterValue(node) {
+    if (!node) return '';
+
+    const raw = String(node.textContent || '').toLowerCase();
+    if (raw.includes('monthly')) return 'monthly';
+    if (raw.includes('quarterly') || /\bq[1-4]\b/.test(raw)) return 'quarterly';
+    if (raw.includes('yearly') || raw.includes('annual')) return 'yearly';
+    if (raw.includes('custom')) return 'custom';
+    if (raw.includes('all')) return 'all';
+
+    return '';
+  }
+
   function normalizeReportFilter(value) {
     const normalized = String(value || '').toLowerCase();
     if (normalized === 'monthly' || normalized === 'quarterly' || normalized === 'yearly' || normalized === 'custom') {
@@ -671,6 +760,192 @@
   function updateCustomDateControlsVisibility() {
     if (!customDateControls) return;
     customDateControls.style.display = currentReportFilter === 'custom' ? 'flex' : 'none';
+  }
+
+  function setupEmbeddedDateRangePicker() {
+    if (!customDateControls) return;
+    ensureCustomDateControlsWiring();
+    updateCustomDateApplyState();
+    if (customDatePickerReady) return;
+
+    loadLitepickerAssets()
+      .then(function() {
+        if (!window.Litepicker || !customDateRangeInput) return;
+        if (customDatePicker) return;
+
+        customDatePicker = new window.Litepicker({
+          element: customDateRangeInput,
+          singleMode: false,
+          autoApply: true,
+          numberOfMonths: 2,
+          numberOfColumns: 2,
+          format: 'YYYY-MM-DD',
+          setup: function(picker) {
+            picker.on('selected', function(startDate, endDate) {
+              const start = startDate && typeof startDate.format === 'function' ? startDate.format('YYYY-MM-DD') : '';
+              const end = endDate && typeof endDate.format === 'function' ? endDate.format('YYYY-MM-DD') : '';
+              setCustomDateRangeValues(start, end, true);
+            });
+
+            picker.on('clear:selection', function() {
+              setCustomDateRangeValues('', '', false);
+            });
+          }
+        });
+
+        customDatePickerReady = true;
+        if (customDateStart || customDateEnd) {
+          syncRangeInputFromDates();
+        }
+      })
+      .catch(function(err) {
+        console.warn('Litepicker initialization failed:', err);
+      });
+  }
+
+  function ensureCustomDateControlsWiring() {
+    if (!customDateControls) return;
+
+    if (!customDateRangeInput) {
+      customDateRangeInput = document.createElement('input');
+      customDateRangeInput.type = 'text';
+      customDateRangeInput.readOnly = true;
+      customDateRangeInput.placeholder = 'Select date range';
+      customDateRangeInput.setAttribute('aria-label', 'Custom date range');
+      customDateRangeInput.setAttribute('data-portal', 'custom-date-range');
+      customDateRangeInput.style.border = '1px solid rgba(16,40,70,0.22)';
+      customDateRangeInput.style.borderRadius = '10px';
+      customDateRangeInput.style.padding = '8px 10px';
+      customDateRangeInput.style.background = '#fff';
+      customDateRangeInput.style.color = '#17365d';
+      customDateRangeInput.style.minWidth = '220px';
+      customDateControls.insertBefore(customDateRangeInput, customDateControls.firstChild);
+    }
+
+    if (customDateStartInput) {
+      customDateStartInput.type = 'hidden';
+    } else {
+      customDateStartInput = document.createElement('input');
+      customDateStartInput.type = 'hidden';
+      customDateStartInput.setAttribute('data-portal', 'custom-date-start');
+      customDateControls.appendChild(customDateStartInput);
+    }
+
+    if (customDateEndInput) {
+      customDateEndInput.type = 'hidden';
+    } else {
+      customDateEndInput = document.createElement('input');
+      customDateEndInput.type = 'hidden';
+      customDateEndInput.setAttribute('data-portal', 'custom-date-end');
+      customDateControls.appendChild(customDateEndInput);
+    }
+  }
+
+  function setCustomDateRangeValues(start, end, syncInputText) {
+    if (customDateStartInput) customDateStartInput.value = start || '';
+    if (customDateEndInput) customDateEndInput.value = end || '';
+    customDateStart = start || '';
+    customDateEnd = end || '';
+    if (syncInputText) {
+      syncRangeInputFromDates();
+    }
+    updateCustomDateApplyState();
+  }
+
+  function syncRangeInputFromDates() {
+    if (!customDateRangeInput) return;
+    if (customDateStart && customDateEnd) {
+      customDateRangeInput.value = customDateStart + ' to ' + customDateEnd;
+      return;
+    }
+    if (customDateStart) {
+      customDateRangeInput.value = customDateStart + ' to';
+      return;
+    }
+    if (customDateEnd) {
+      customDateRangeInput.value = 'to ' + customDateEnd;
+      return;
+    }
+    customDateRangeInput.value = '';
+  }
+
+  function updateCustomDateApplyState() {
+    if (!customDateApplyButton) return;
+    const start = customDateStartInput ? String(customDateStartInput.value || '').trim() : '';
+    const end = customDateEndInput ? String(customDateEndInput.value || '').trim() : '';
+    customDateApplyButton.disabled = !(start && end);
+    customDateApplyButton.style.opacity = customDateApplyButton.disabled ? '0.55' : '1';
+    customDateApplyButton.style.cursor = customDateApplyButton.disabled ? 'not-allowed' : 'pointer';
+  }
+
+  function loadLitepickerAssets() {
+    const stylePromise = ensureStylesheet(
+      'portal-litepicker-css',
+      'https://cdn.jsdelivr.net/npm/litepicker/dist/css/litepicker.css'
+    );
+
+    if (window.Litepicker) {
+      return stylePromise;
+    }
+
+    const scriptPromise = ensureScript(
+      'portal-litepicker-js',
+      'https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js'
+    );
+
+    return Promise.all([stylePromise, scriptPromise]).then(function() {
+      return undefined;
+    });
+  }
+
+  function ensureStylesheet(id, href) {
+    return new Promise(function(resolve, reject) {
+      const existing = document.getElementById(id);
+      if (existing) {
+        resolve();
+        return;
+      }
+      const link = document.createElement('link');
+      link.id = id;
+      link.rel = 'stylesheet';
+      link.href = href;
+      link.onload = function() { resolve(); };
+      link.onerror = function() { reject(new Error('Failed to load stylesheet: ' + href)); };
+      document.head.appendChild(link);
+    });
+  }
+
+  function ensureScript(id, src) {
+    return new Promise(function(resolve, reject) {
+      const existing = document.getElementById(id);
+      if (existing) {
+        if (existing.getAttribute('data-loaded') === 'true') {
+          resolve();
+          return;
+        }
+        existing.addEventListener('load', function onLoad() {
+          existing.setAttribute('data-loaded', 'true');
+          resolve();
+        }, { once: true });
+        existing.addEventListener('error', function onErr() {
+          reject(new Error('Failed to load script: ' + src));
+        }, { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.id = id;
+      script.src = src;
+      script.async = true;
+      script.onload = function() {
+        script.setAttribute('data-loaded', 'true');
+        resolve();
+      };
+      script.onerror = function() {
+        reject(new Error('Failed to load script: ' + src));
+      };
+      document.head.appendChild(script);
+    });
   }
 
   function getCustomDateRangeState() {
@@ -767,9 +1042,16 @@
     if (customDateEndInput) {
       customDateEndInput.value = '';
     }
+    if (customDateRangeInput) {
+      customDateRangeInput.value = '';
+    }
+    if (customDatePicker && typeof customDatePicker.clearSelection === 'function') {
+      customDatePicker.clearSelection();
+    }
 
     syncReportFilterButtons();
     updateCustomDateControlsVisibility();
+    updateCustomDateApplyState();
     applyFiltersAndRender();
   }
 
