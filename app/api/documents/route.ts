@@ -40,9 +40,14 @@ function isTypeOfReportField(field: Record<string, unknown>): boolean {
 }
 
 function extractOptionsFromField(field: Record<string, unknown>): Array<Record<string, unknown>> {
+    const validations = field.validations as Record<string, unknown> | undefined;
+    const validationOptions = validations?.options;
+    if (Array.isArray(validationOptions)) return validationOptions as Array<Record<string, unknown>>;
+
     const metadata = field.metadata as Record<string, unknown> | undefined;
-    const options = metadata?.options;
-    if (Array.isArray(options)) return options as Array<Record<string, unknown>>;
+    const metadataOptions = metadata?.options;
+    if (Array.isArray(metadataOptions)) return metadataOptions as Array<Record<string, unknown>>;
+
     return [];
 }
 
