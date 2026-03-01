@@ -98,6 +98,73 @@
   }
 
   /* ═══════════════════════════════════════════════════════
+     5. SECURE TEXT — encrypt / decrypt scramble effect
+     ═══════════════════════════════════════════════════════ */
+
+  function initSecureTextEffect() {
+    var el = document.querySelector('.secure-text');
+    if (!el) return;
+
+    var original = el.textContent;
+    var chars = '⣿⡿⣻⢟⡛⠿⣽⢯⡷⣯░▒▓█▀▄■□◆◇●○◌⌐¬¤§¶×÷±≈∞∑∏∫≠≤≥⊕⊗⊞⊟';
+    var len = original.length;
+
+    /* Scramble a percentage of characters (0 = fully clear, 1 = fully scrambled) */
+    function scramble(amount) {
+      var result = '';
+      for (var i = 0; i < len; i++) {
+        if (original[i] === ' ') {
+          result += ' ';
+        } else if (Math.random() < amount) {
+          result += chars[Math.floor(Math.random() * chars.length)];
+        } else {
+          result += original[i];
+        }
+      }
+      el.textContent = result;
+    }
+
+    /* Animate from one scramble level to another over duration ms */
+    function animate(fromAmt, toAmt, duration, cb) {
+      var start = performance.now();
+      function tick(now) {
+        var t = Math.min((now - start) / duration, 1);
+        /* Ease in-out */
+        var ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        var amt = fromAmt + (toAmt - fromAmt) * ease;
+        scramble(amt);
+        if (t < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          if (cb) cb();
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+
+    /* Cycle: decrypt → hold clear → encrypt → hold scrambled → repeat */
+    function cycle() {
+      /* Start scrambled, decrypt over 1.2s */
+      animate(0.85, 0, 1200, function () {
+        el.textContent = original; /* ensure clean */
+        /* Hold clear for 5s */
+        setTimeout(function () {
+          /* Encrypt over 0.8s */
+          animate(0, 0.85, 800, function () {
+            /* Hold scrambled for 1.5s */
+            setTimeout(cycle, 1500);
+          });
+        }, 5000);
+      });
+    }
+
+    /* Initial state: scrambled */
+    scramble(0.85);
+    /* Wait for entrance animation to finish, then start cycle */
+    setTimeout(cycle, 1800);
+  }
+
+  /* ═══════════════════════════════════════════════════════
      BOOT
      ═══════════════════════════════════════════════════════ */
 
@@ -106,6 +173,7 @@
     initEntranceAnimations();
     initParallax();
     initButtonEffects();
+    initSecureTextEffect();
   }
 
   if (document.readyState === 'loading') {
