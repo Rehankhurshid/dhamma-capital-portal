@@ -348,10 +348,6 @@
         return;
       }
 
-      const clickedDownloadButton = e.target && typeof e.target.closest === 'function'
-        ? e.target.closest('[data-portal="doc-download-button"], [data-action="download"], .doc-download-button, a[download]')
-        : null;
-
       const isCardAnchor = card.tagName === 'A';
       const clickedLink = e.target && typeof e.target.closest === 'function' ? e.target.closest('a') : null;
       const isLinkClick = isCardAnchor || Boolean(clickedLink);
@@ -360,20 +356,11 @@
       if (isLinkClick && hasToken && downloadUrl !== '#') {
         e.preventDefault();
         void logDocumentAccess(doc.id);
-        const downloadTarget = clickedDownloadButton ||
-          (clickedLink && /download/i.test(String(clickedLink.textContent || '')) ? clickedLink : null) ||
-          clickedLink;
-        setDownloadProcessingState(downloadTarget, true);
         void downloadWithAuthToken(downloadUrl, doc.title || 'Document')
           .then(function(success) {
             if (success) {
               showPortalToast('Download started');
             }
-          })
-          .finally(function() {
-            window.setTimeout(function() {
-              setDownloadProcessingState(downloadTarget, false);
-            }, 900);
           });
         return;
       }
@@ -1774,53 +1761,6 @@
       });
   }
 
-  function setDownloadProcessingState(target, active) {
-    if (!target) return;
-
-    target.classList.toggle('is-processing', Boolean(active));
-    target.setAttribute('data-download-processing', active ? 'true' : 'false');
-    target.setAttribute('aria-busy', active ? 'true' : 'false');
-
-    const iconTarget = target.querySelector('[data-portal="doc-download-icon"], .doc-download-icon, [data-icon="download"]');
-    if (iconTarget) {
-      if (!iconTarget.getAttribute('data-download-original-html')) {
-        iconTarget.setAttribute('data-download-original-html', iconTarget.innerHTML);
-      }
-      if (active) {
-        iconTarget.innerHTML = '&#9711;';
-        iconTarget.classList.add('is-spinning');
-      } else {
-        const original = iconTarget.getAttribute('data-download-original-html');
-        if (original) {
-          iconTarget.innerHTML = original;
-        }
-        iconTarget.classList.remove('is-spinning');
-      }
-    }
-
-    let fallbackSpinner = target.querySelector('[data-portal="doc-download-spinner"]');
-    if (!iconTarget) {
-      if (active && !fallbackSpinner) {
-        fallbackSpinner = document.createElement('span');
-        fallbackSpinner.setAttribute('data-portal', 'doc-download-spinner');
-        fallbackSpinner.className = 'portal-inline-spinner';
-        fallbackSpinner.setAttribute('aria-hidden', 'true');
-        target.appendChild(fallbackSpinner);
-      }
-      if (!active && fallbackSpinner && fallbackSpinner.parentNode) {
-        fallbackSpinner.parentNode.removeChild(fallbackSpinner);
-      }
-    }
-
-    const labelTarget = target.querySelector('[data-portal="doc-download-label"]');
-    if (labelTarget) {
-      if (!labelTarget.getAttribute('data-download-original-label')) {
-        labelTarget.setAttribute('data-download-original-label', String(labelTarget.textContent || '').trim() || 'Download');
-      }
-      labelTarget.textContent = active ? 'Processing…' : (labelTarget.getAttribute('data-download-original-label') || 'Download');
-    }
-  }
-
   function showPortalToast(message, isError) {
     const host = ensureToastHost();
     if (!host) return;
@@ -1850,24 +1790,23 @@
     host = document.createElement('div');
     host.setAttribute('data-portal', 'toast-host');
     host.style.position = 'fixed';
-    host.style.right = '16px';
-    host.style.bottom = '16px';
+    host.style.left = '50%';
+    host.style.bottom = '20px';
+    host.style.transform = 'translateX(-50%)';
     host.style.display = 'grid';
     host.style.gap = '8px';
     host.style.zIndex = '10001';
     host.style.pointerEvents = 'none';
+    host.style.justifyItems = 'center';
     document.body.appendChild(host);
 
     if (!document.getElementById('portal-toast-styles')) {
       const style = document.createElement('style');
       style.id = 'portal-toast-styles';
       style.textContent =
-        '.portal-toast{pointer-events:none;opacity:0;transform:translateY(8px);transition:opacity .2s ease,transform .2s ease;background:#17365d;color:#fff;padding:10px 12px;border-radius:10px;font-size:13px;box-shadow:0 10px 26px rgba(0,0,0,.18);}' +
-        '.portal-toast.is-visible{opacity:1;transform:translateY(0);}' +
-        '.portal-toast.is-error{background:#9b1c1c;}' +
-        '.portal-inline-spinner{display:inline-block;width:12px;height:12px;margin-left:8px;border:2px solid currentColor;border-top-color:transparent;border-radius:999px;animation:portalSpin .8s linear infinite;vertical-align:middle;}' +
-        '.is-spinning{display:inline-block;animation:portalSpin .8s linear infinite;}' +
-        '@keyframes portalSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
+        '.portal-toast{pointer-events:none;opacity:0;transform:translateY(8px) scale(.98);transition:opacity .2s ease,transform .2s ease;background:#0f172a;color:#f8fafc;border:1px solid rgba(148,163,184,.28);padding:10px 14px;border-radius:10px;font-size:13px;font-weight:500;line-height:1.2;box-shadow:0 8px 24px rgba(2,6,23,.25);backdrop-filter:blur(8px);}' +
+        '.portal-toast.is-visible{opacity:1;transform:translateY(0) scale(1);}' +
+        '.portal-toast.is-error{background:#7f1d1d;border-color:rgba(254,202,202,.35);color:#fee2e2;}';
       document.head.appendChild(style);
     }
 
