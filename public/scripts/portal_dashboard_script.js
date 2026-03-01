@@ -179,7 +179,7 @@
         if (!matchesSearch) return false;
 
         if (!matchesReportFilter(doc)) return false;
-        if (currentReportFilter === 'custom' && !matchesDateRange(doc, range.startTs, range.endTs)) return false;
+        if (range.hasActiveRange && !matchesDateRange(doc, range.startTs, range.endTs)) return false;
 
         return true;
       })
@@ -471,10 +471,11 @@
         btn.addEventListener('click', function(e) {
           e.preventDefault();
           const value = normalizeReportFilter(btn.getAttribute('data-filter-value'));
-          setReportFilter(value);
-          if (value === 'custom') {
+          if (btn.getAttribute('data-filter-value') === 'custom') {
             openCustomDatePicker();
+            return;
           }
+          setReportFilter(value);
         });
       });
 
@@ -838,7 +839,7 @@
 
   function normalizeReportFilter(value) {
     const normalized = String(value || '').toLowerCase();
-    if (normalized === 'monthly' || normalized === 'quarterly' || normalized === 'yearly' || normalized === 'custom') {
+    if (normalized === 'monthly' || normalized === 'quarterly' || normalized === 'yearly') {
       return normalized;
     }
     return 'all';
@@ -867,11 +868,7 @@
 
   function updateCustomDateControlsVisibility() {
     if (!customDateControls) return;
-    if (customDateHostIsGenerated) {
-      customDateControls.style.display = 'none';
-      return;
-    }
-    customDateControls.style.display = currentReportFilter === 'custom' ? 'flex' : 'none';
+    customDateControls.style.display = 'none';
   }
 
   function setupEmbeddedDateRangePicker() {
@@ -1021,9 +1018,6 @@
   }
 
   function openCustomDatePicker() {
-    if (currentReportFilter !== 'custom') {
-      setReportFilter('custom');
-    }
     if (customDatePicker && typeof customDatePicker.show === 'function') {
       customDatePicker.show();
       return;
@@ -1072,9 +1066,8 @@
       : '';
 
     customDateOpenButtons.forEach(function(btn) {
-      const target = btn.firstElementChild && btn.firstElementChild.children.length === 0
-        ? btn.firstElementChild
-        : btn;
+      const target = getDateRangeLabelTarget(btn);
+      if (!target) return;
 
       if (!target.getAttribute('data-default-date-label')) {
         target.setAttribute('data-default-date-label', String(target.textContent || '').trim() || 'Date Range');
@@ -1088,6 +1081,14 @@
     const date = new Date(String(value) + 'T00:00:00');
     if (!Number.isFinite(date.getTime())) return String(value || '');
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  function getDateRangeLabelTarget(button) {
+    if (!button) return null;
+    if (button.getAttribute('data-portal') === 'date-range-label' || button.hasAttribute('data-date-range-label')) {
+      return button;
+    }
+    return button.querySelector('[data-portal="date-range-label"], [data-date-range-label]');
   }
 
   function updateCustomDateApplyState() {
@@ -1170,9 +1171,12 @@
   }
 
   function getCustomDateRangeState() {
+    const start = String(customDateStart || '').trim();
+    const end = String(customDateEnd || '').trim();
     return {
-      startTs: getDateBoundaryTimestamp(customDateStart, false),
-      endTs: getDateBoundaryTimestamp(customDateEnd, true),
+      startTs: getDateBoundaryTimestamp(start, false),
+      endTs: getDateBoundaryTimestamp(end, true),
+      hasActiveRange: Boolean(start || end),
     };
   }
 
@@ -1193,7 +1197,7 @@
   }
 
   function matchesReportFilter(doc) {
-    if (currentReportFilter === 'all' || currentReportFilter === 'custom') return true;
+    if (currentReportFilter === 'all') return true;
 
     const title = String(doc.title || '').toLowerCase();
     const category = String(doc.category || '').toLowerCase();
@@ -1241,7 +1245,12 @@
           ? 'Name Z-A'
           : 'Latest first';
     const rangeLabel = currentReportFilter !== 'custom'
-      ? ''
+      ? (range.hasActiveRange
+        ? ' | Range: ' +
+        (range.startTs ? new Date(range.startTs).toLocaleDateString('en-US') : 'Any') +
+        ' to ' +
+        (range.endTs ? new Date(range.endTs).toLocaleDateString('en-US') : 'Any')
+        : '')
       : ' | Range: ' +
         (range.startTs ? new Date(range.startTs).toLocaleDateString('en-US') : 'Any') +
         ' to ' +
