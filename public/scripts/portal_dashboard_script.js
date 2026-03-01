@@ -31,6 +31,7 @@
   let customDateApplyButton = null;
   let customDateRangeInput = null;
   let customDateOpenButton = null;
+  let customDateOpenButtons = [];
   let customDatePicker = null;
   let customDatePickerReady = false;
   let filtersResetButton = null;
@@ -430,7 +431,8 @@
     customDateEndInput = document.querySelector('[data-portal="custom-date-end"]');
     customDateApplyButton = document.querySelector('[data-portal="custom-date-apply"]');
     customDateRangeInput = document.querySelector('[data-portal="custom-date-range"]');
-    customDateOpenButton = document.querySelector('[data-portal="custom-date-open"]');
+    customDateOpenButtons = getCustomDateOpenButtons();
+    customDateOpenButton = customDateOpenButtons.length ? customDateOpenButtons[0] : null;
     filtersResetButton = document.querySelector('[data-portal="filters-reset"]');
     setupEmbeddedDateRangePicker();
 
@@ -468,6 +470,9 @@
           e.preventDefault();
           const value = normalizeReportFilter(btn.getAttribute('data-filter-value'));
           setReportFilter(value);
+          if (value === 'custom') {
+            openCustomDatePicker();
+          }
         });
       });
 
@@ -514,12 +519,12 @@
       });
     }
 
-    if (customDateOpenButton) {
-      customDateOpenButton.addEventListener('click', function(e) {
+    customDateOpenButtons.forEach(function(button) {
+      button.addEventListener('click', function(e) {
         e.preventDefault();
         openCustomDatePicker();
       });
-    }
+    });
 
     if (filtersResetButton) {
       filtersResetButton.addEventListener('click', function(e) {
@@ -701,6 +706,23 @@
         node.removeAttribute('aria-pressed');
       }
 
+      seen.add(control);
+      controls.push(control);
+    });
+
+    return controls;
+  }
+
+  function getCustomDateOpenButtons() {
+    const candidates = Array.prototype.slice.call(
+      document.querySelectorAll('[data-portal="custom-date-open"], [data-open-date-picker="true"]')
+    );
+    const seen = new Set();
+    const controls = [];
+
+    candidates.forEach(function(node) {
+      const control = resolveReportFilterControl(node) || node;
+      if (!control || seen.has(control)) return;
       seen.add(control);
       controls.push(control);
     });
