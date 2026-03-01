@@ -758,14 +758,21 @@
     const controls = [];
 
     candidates.forEach(function(node) {
+      if (isDatePickerTriggerNode(node)) return;
+
       const control = resolveReportFilterControl(node);
       if (!control || seen.has(control)) return;
+      if (isDatePickerTriggerNode(control)) return;
+
+      const hasExplicitFilter = control.getAttribute('data-portal') === 'report-filter' || node.getAttribute('data-portal') === 'report-filter';
+      const inferredValue = inferReportFilterValue(control) || inferReportFilterValue(node);
+      const explicitValue = control.getAttribute('data-filter-value') || node.getAttribute('data-filter-value') || '';
+      if (!hasExplicitFilter && !explicitValue && !inferredValue) {
+        return;
+      }
 
       const normalizedValue = normalizeReportFilter(
-        control.getAttribute('data-filter-value') ||
-        node.getAttribute('data-filter-value') ||
-        inferReportFilterValue(control) ||
-        inferReportFilterValue(node)
+        explicitValue || inferredValue
       );
 
       control.setAttribute('data-portal', 'report-filter');
@@ -788,6 +795,15 @@
     });
 
     return controls;
+  }
+
+  function isDatePickerTriggerNode(node) {
+    if (!node || !node.tagName) return false;
+    if (node.getAttribute('data-open-date-picker') === 'true') return true;
+    if (node.getAttribute('data-portal') === 'custom-date-open') return true;
+    if (node.getAttribute('data-portal') === 'date-range-label' || node.hasAttribute('data-date-range-label')) return true;
+    if (node.querySelector && node.querySelector('[data-portal="date-range-label"], [data-date-range-label]')) return true;
+    return false;
   }
 
   function getCustomDateOpenButtons() {
