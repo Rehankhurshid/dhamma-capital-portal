@@ -2,19 +2,99 @@ import { NextRequest, NextResponse } from "next/server";
 import {
     getConfig, getEnvFromProcess, getSession, listCollectionItems,
     safeLower, sanitizeText, getField, parseBoolean, normalizeScope,
-    extractReferenceIds, extractFileUrl,
+    extractReferenceIds, extractFileUrl, webflowFetch,
 } from "@/app/lib/api";
 
-function extractOptionText(value: unknown): string {
+type OptionIdNameMap = Record<string, string>;
+
+let reportTypeOptionMapCache: {
+    key: string;
+    expiresAt: number;
+    map: OptionIdNameMap;
+} | null = null;
+
+function isCacheValid(cache: { expiresAt: number } | null): boolean {
+    return Boolean(cache && cache.expiresAt > Date.now());
+}
+
+function getFieldKeysForMatching(field: Record<string, unknown>): string[] {
+    return [
+        safeLower(field.slug),
+        safeLower(field.displayName),
+        safeLower(field.name),
+        safeLower(field.id),
+    ].filter(Boolean);
+}
+
+function isTypeOfReportField(field: Record<string, unknown>): boolean {
+    const keys = getFieldKeysForMatching(field);
+    return keys.some((key) =>
+        key === "type of report" ||
+        key === "type_of_report" ||
+        key === "type-of-report" ||
+        key.startsWith("type-of-report-") ||
+        key === "report type" ||
+        key === "report_type" ||
+        key === "report-type"
+    );
+}
+
+function extractOptionsFromField(field: Record<string, unknown>): Array<Record<string, unknown>> {
+    const metadata = field.metadata as Record<string, unknown> | undefined;
+    const options = metadata?.options;
+    if (Array.isArray(options)) return options as Array<Record<string, unknown>>;
+    return [];
+}
+
+function buildOptionIdNameMap(options: Array<Record<string, unknown>>): OptionIdNameMap {
+    const map: OptionIdNameMap = {};
+    for (const option of options) {
+        const id = sanitizeText(option.id);
+        if (!id) continue;
+
+        const name = sanitizeText(option.name || option.label || option.value || option.slug || id);
+        map[id] = name;
+    }
+    return map;
+}
+
+async function getTypeOfReportOptionMap(cfg: ReturnType<typeof getConfig>): Promise<OptionIdNameMap> {
+    if (!cfg.documentsCollectionId) return {};
+
+    const cacheKey = `type-of-report:${cfg.documentsCollectionId}`;
+    if (reportTypeOptionMapCache && reportTypeOptionMapCache.key === cacheKey && isCacheValid(reportTypeOptionMapCache)) {
+        return reportTypeOptionMapCache.map;
+    }
+
+    try {
+        const payload = await webflowFetch(`/collections/${cfg.documentsCollectionId}`, cfg, { method: "GET" }) as Record<string, unknown>;
+        const fields = Array.isArray(payload.fields) ? payload.fields as Array<Record<string, unknown>> : [];
+        const reportField = fields.find(isTypeOfReportField);
+        const optionMap = reportField ? buildOptionIdNameMap(extractOptionsFromField(reportField)) : {};
+
+        reportTypeOptionMapCache = {
+            key: cacheKey,
+            expiresAt: Date.now() + (10 * 60 * 1000),
+            map: optionMap,
+        };
+        return optionMap;
+    } catch {
+        return {};
+    }
+}
+
+function extractOptionText(value: unknown, optionMap: OptionIdNameMap): string {
     if (value === null || value === undefined) return "";
 
     if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-        return sanitizeText(value);
+        const normalized = sanitizeText(value);
+        if (normalized && optionMap[normalized]) return optionMap[normalized];
+        return normalized;
     }
 
     if (Array.isArray(value)) {
         for (const part of value) {
-            const parsed = extractOptionText(part);
+            const parsed = extractOptionText(part, optionMap);
             if (parsed) return parsed;
         }
         return "";
@@ -22,9 +102,12 @@ function extractOptionText(value: unknown): string {
 
     if (typeof value === "object") {
         const v = value as Record<string, unknown>;
-        const candidates = [v.name, v.label, v.value, v.slug, v.title];
+        const id = sanitizeText(v.id || v.optionId || v.valueId || "");
+        if (id && optionMap[id]) return optionMap[id];
+
+        const candidates = [v.name, v.label, v.value, v.slug, v.title, v.id];
         for (const candidate of candidates) {
-            const parsed = extractOptionText(candidate);
+            const parsed = extractOptionText(candidate, optionMap);
             if (parsed) return parsed;
         }
     }
@@ -41,6 +124,7 @@ export async function GET(req: NextRequest) {
         const cfg = getConfig(env);
         const session = await getSession(req, cfg);
         if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const typeOfReportOptionMap = await getTypeOfReportOptionMap(cfg);
 
         const { searchParams } = new URL(req.url);
         const search = safeLower(searchParams.get("search") || "");
@@ -62,7 +146,7 @@ export async function GET(req: NextRequest) {
                     ["type_of_report", "type-of-report", "report_type", "report-type", "category"],
                     "Other"
                 );
-                const category = sanitizeText(extractOptionText(reportTypeRaw) || "Other");
+                const category = sanitizeText(extractOptionText(reportTypeRaw, typeOfReportOptionMap) || "Other");
                 // Prefer explicit CMS date field; fall back to legacy published_date, then system timestamps.
                 const documentDate = sanitizeText(
                     getField(
