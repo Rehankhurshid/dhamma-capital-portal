@@ -41,6 +41,7 @@
   let filtersResetButton = null;
   let activeLayout = 'grid';
   let loadingStateHandled = false;
+  let dashboardMotionEnabled = true;
   let lastSeenAt = getLastSeenAt();
 
   function getStoredToken() {
@@ -170,6 +171,9 @@
   }
   
   function applyFiltersAndRender() {
+    ensureDashboardAnimationStyles();
+    setFilteringVisualState(true);
+
     const term = currentSearchTerm.trim().toLowerCase();
     const range = getCustomDateRangeState();
     const filtered = allDocuments
@@ -199,6 +203,9 @@
 
     currentVisibleCount = filtered.length;
     renderDocuments(filtered);
+    window.requestAnimationFrame(function() {
+      setFilteringVisualState(false);
+    });
     updateSearchClearButtonState();
     updateFilterSummary(range);
     updateAppliedStateIndicators(range, filtered.length);
@@ -219,11 +226,49 @@
     if (!template) return;
 
     container.innerHTML = '';
-    docs.forEach(function(doc) {
+    docs.forEach(function(doc, index) {
       const card = template.cloneNode(true);
       applyDocumentDataToCard(card, doc);
+      primeCardEnterAnimation(card, index);
       container.appendChild(card);
     });
+  }
+
+  function ensureDashboardAnimationStyles() {
+    if (document.getElementById('portal-dashboard-motion-styles')) return;
+
+    dashboardMotionEnabled = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+    const style = document.createElement('style');
+    style.id = 'portal-dashboard-motion-styles';
+    style.textContent =
+      '[data-portal=\"document-grid\"], [data-portal=\"document-vertical-list\"]{transition:opacity .22s ease, transform .22s ease;will-change:opacity,transform;}' +
+      '[data-portal=\"document-grid\"].portal-filtering, [data-portal=\"document-vertical-list\"].portal-filtering{opacity:.76;transform:translateY(2px);}' +
+      '[data-portal=\"document-item\"].portal-doc-enter{opacity:0;animation:portalDocEnter .28s ease forwards;animation-delay:var(--portal-enter-delay,0ms);}' +
+      '@keyframes portalDocEnter{from{opacity:0;transform:translateY(8px) scale(.995);}to{opacity:1;transform:translateY(0) scale(1);}}' +
+      '@media (prefers-reduced-motion: reduce){' +
+      '[data-portal=\"document-grid\"], [data-portal=\"document-vertical-list\"]{transition:none !important;}' +
+      '[data-portal=\"document-item\"].portal-doc-enter{animation:none !important;opacity:1 !important;}' +
+      '}';
+    document.head.appendChild(style);
+  }
+
+  function setFilteringVisualState(active) {
+    [gridContainer, listContainer].forEach(function(container) {
+      if (!container || !dashboardMotionEnabled) return;
+      container.classList.toggle('portal-filtering', Boolean(active));
+    });
+  }
+
+  function primeCardEnterAnimation(card, index) {
+    if (!card || !dashboardMotionEnabled) return;
+    const delay = Math.min(index * 28, 220);
+    card.style.setProperty('--portal-enter-delay', delay + 'ms');
+    card.classList.add('portal-doc-enter');
+    card.addEventListener('animationend', function() {
+      card.classList.remove('portal-doc-enter');
+      card.style.removeProperty('--portal-enter-delay');
+    }, { once: true });
   }
 
   function getContainerTemplate(container) {
