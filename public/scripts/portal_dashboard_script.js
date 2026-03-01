@@ -22,6 +22,8 @@
   let customDateEnd = '';
   let searchClearButton = null;
   let sortSelect = null;
+  let sortDropdown = null;
+  let sortOptionLinks = [];
   let reportFilterButtons = [];
   let customDateControls = null;
   let customDateStartInput = null;
@@ -176,6 +178,12 @@
         return true;
       })
       .sort(function(a, b) {
+        if (currentSortOrder === 'titleasc') {
+          return String(a.title || '').localeCompare(String(b.title || ''));
+        }
+        if (currentSortOrder === 'titledesc') {
+          return String(b.title || '').localeCompare(String(a.title || ''));
+        }
         const dateDiff = getDocumentTimestamp(a) - getDocumentTimestamp(b);
         return currentSortOrder === 'oldest' ? dateDiff : -dateDiff;
       });
@@ -409,7 +417,9 @@
   function setupFilters() {
     ensureFiltersUI();
 
-    sortSelect = document.querySelector('[data-portal="sort-select"]');
+    sortSelect = document.querySelector('select[data-portal="sort-select"], input[data-portal="sort-select"]');
+    sortDropdown = document.querySelector('[data-portal="sort-select"]:not(select):not(input):not(textarea)');
+    sortOptionLinks = getSortOptionLinks();
     reportFilterButtons = Array.prototype.slice.call(document.querySelectorAll('[data-portal="report-filter"]'));
     customDateControls = document.querySelector('[data-portal="custom-date-controls"]');
     customDateStartInput = document.querySelector('[data-portal="custom-date-start"]');
@@ -419,12 +429,26 @@
 
     if (sortSelect) {
       currentSortOrder = normalizeSortOrder(sortSelect.value);
-      sortSelect.value = currentSortOrder;
       sortSelect.addEventListener('change', function() {
-        currentSortOrder = normalizeSortOrder(sortSelect.value);
-        applyFiltersAndRender();
+        setSortOrder(sortSelect.value);
+      });
+    } else if (sortDropdown) {
+      const activeSortOption = sortOptionLinks.find(function(link) {
+        return link.classList.contains('is-active') || link.classList.contains('w--current');
+      });
+      const initialValue = sortDropdown.getAttribute('data-sort-value') || (activeSortOption ? getSortOptionValue(activeSortOption) : '');
+      currentSortOrder = normalizeSortOrder(initialValue);
+    }
+
+    if (sortOptionLinks.length) {
+      sortOptionLinks.forEach(function(link) {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          setSortOrder(getSortOptionValue(link));
+        });
       });
     }
+    syncSortUI();
 
     if (reportFilterButtons.length) {
       const activeButton = reportFilterButtons.find(function(btn) {
@@ -507,6 +531,8 @@
       '<select data-portal="sort-select" style="border:1px solid rgba(16,40,70,0.22);border-radius:10px;padding:8px 10px;background:#fff;color:#17365d;">' +
       '<option value="newest">Descending (Latest First)</option>' +
       '<option value="oldest">Ascending (Earliest First)</option>' +
+      '<option value="titleasc">Name: A to Z</option>' +
+      '<option value="titledesc">Name: Z to A</option>' +
       '</select>' +
       '</label>' +
       '<button type="button" data-portal="filters-reset" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Reset</button>' +
@@ -536,7 +562,81 @@
   }
 
   function normalizeSortOrder(value) {
-    return String(value || '').toLowerCase() === 'oldest' ? 'oldest' : 'newest';
+    const normalized = String(value || '').toLowerCase();
+    if (normalized === 'oldest' || normalized === 'titleasc' || normalized === 'titledesc') {
+      return normalized;
+    }
+    return 'newest';
+  }
+
+  function setSortOrder(value) {
+    currentSortOrder = normalizeSortOrder(value);
+    syncSortUI();
+    applyFiltersAndRender();
+  }
+
+  function syncSortUI() {
+    if (sortSelect) {
+      sortSelect.value = currentSortOrder;
+    }
+    if (sortDropdown) {
+      sortDropdown.setAttribute('data-sort-value', currentSortOrder);
+    }
+    if (!sortOptionLinks.length) return;
+
+    sortOptionLinks.forEach(function(link) {
+      const value = getSortOptionValue(link);
+      const isActive = value === currentSortOrder;
+      link.classList.toggle('is-active', isActive);
+      link.classList.toggle('w--current', isActive);
+      link.setAttribute('aria-current', isActive ? 'true' : 'false');
+    });
+  }
+
+  function getSortOptionLinks() {
+    const explicitOptions = Array.prototype.slice.call(document.querySelectorAll('[data-portal="sort-option"]'))
+      .filter(function(link) {
+        return Boolean(getSortOptionValue(link));
+      });
+    if (explicitOptions.length) {
+      return explicitOptions;
+    }
+    if (!sortDropdown) {
+      return [];
+    }
+
+    const fallbackOptions = Array.prototype.slice.call(
+      sortDropdown.querySelectorAll('[data-sort-value], .w-dropdown-list a, .w-dropdown-list button, [role="menu"] a, [role="menu"] button')
+    ).filter(function(link) {
+      return Boolean(getSortOptionValue(link));
+    });
+
+    return fallbackOptions;
+  }
+
+  function getSortOptionValue(optionElement) {
+    if (!optionElement) return '';
+
+    const rawValue = String(
+      optionElement.getAttribute('data-sort-value') ||
+      optionElement.getAttribute('value') ||
+      ''
+    ).toLowerCase().trim();
+
+    if (rawValue === 'newest' || rawValue === 'oldest' || rawValue === 'titleasc' || rawValue === 'titledesc') {
+      return rawValue;
+    }
+
+    const text = String(optionElement.textContent || '').toLowerCase().trim();
+    if (!text) return '';
+    if (text.includes('oldest') || text.includes('earliest')) return 'oldest';
+    if (text.includes('newest') || text.includes('latest')) return 'newest';
+    if (text.includes('a to z') || text.includes('a-z')) return 'titleasc';
+    if (text.includes('z to a') || text.includes('z-a')) return 'titledesc';
+    if (text.includes('name') && text.includes('asc')) return 'titleasc';
+    if (text.includes('name') && text.includes('desc')) return 'titledesc';
+
+    return '';
   }
 
   function normalizeReportFilter(value) {
@@ -637,7 +737,13 @@
             ? 'Yearly / annual reports'
             : 'Custom date range';
 
-    const sortLabel = currentSortOrder === 'oldest' ? 'Earliest first' : 'Latest first';
+    const sortLabel = currentSortOrder === 'oldest'
+      ? 'Earliest first'
+      : currentSortOrder === 'titleasc'
+        ? 'Name A-Z'
+        : currentSortOrder === 'titledesc'
+          ? 'Name Z-A'
+          : 'Latest first';
     const rangeLabel = currentReportFilter !== 'custom'
       ? ''
       : ' | Range: ' +
@@ -654,9 +760,7 @@
     customDateStart = '';
     customDateEnd = '';
 
-    if (sortSelect) {
-      sortSelect.value = currentSortOrder;
-    }
+    syncSortUI();
     if (customDateStartInput) {
       customDateStartInput.value = '';
     }
