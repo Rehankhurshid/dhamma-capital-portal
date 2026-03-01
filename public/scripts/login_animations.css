@@ -1,13 +1,13 @@
 /**
  * Login Page Animations — Dhamma Capital
- * Glass morphism + entrance animations + micro-interactions
+ * Cinematic image effect + glass morphism + entrance animations
  *
  * Load in Webflow Page Settings → Inside <head> tag:
  *   <link rel="stylesheet" href="<DEPLOY_URL>/scripts/login_animations.css">
  */
 
 /* ═══════════════════════════════════════════════════════
-   1. HERO IMAGE — WebGL shader canvas overlay
+   1. HERO IMAGE — cinematic Ken Burns + color wash + light leak
    ═══════════════════════════════════════════════════════ */
 
 .login-img_wrap {
@@ -15,109 +15,86 @@
   overflow: hidden;
 }
 
-/* The WebGL canvas sits over the image, blended */
-#dc-shader {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  mix-blend-mode: overlay;
-  opacity: 0.82;
-  pointer-events: none;
-  z-index: 2;
-  animation: dcShaderFadeIn 1.8s ease forwards;
-}
-
-@keyframes dcShaderFadeIn {
-  from { opacity: 0; }
-  to   { opacity: 0.82; }
-}
-
-/* Hero image itself gets a subtle scale + reveal */
+/* Slow cinematic zoom + drift on the hero image */
 .login-hero_img {
-  animation: dcImgReveal 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
-  transform-origin: center center;
+  animation: dcKenBurns 25s ease-in-out infinite alternate;
+  transform-origin: 30% 40%;
+  will-change: transform;
 }
 
-@keyframes dcImgReveal {
-  from {
-    opacity: 0;
-    transform: scale(1.04);
-    filter: blur(4px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-    filter: blur(0);
-  }
+@keyframes dcKenBurns {
+  0%   { transform: scale(1);    }
+  50%  { transform: scale(1.08) translate(-1.5%, 1%); }
+  100% { transform: scale(1.04) translate(1%, -0.5%); }
 }
 
-/* Gradient overlay — blends the image into the shader */
+/* Animated color wash overlay — shifting brand tones */
 .login-img_wrap::before {
   content: '';
   position: absolute;
   inset: 0;
   background: linear-gradient(
     135deg,
-    rgba(10, 22, 42, 0.28) 0%,
-    rgba(26, 58, 82, 0.14) 50%,
-    rgba(10, 22, 42, 0.32) 100%
+    rgba(10, 22, 42, 0.45) 0%,
+    rgba(26, 58, 82, 0.2) 35%,
+    rgba(18, 60, 72, 0.3) 65%,
+    rgba(10, 22, 42, 0.5) 100%
   );
+  background-size: 300% 300%;
+  animation: dcColorWash 12s ease-in-out infinite;
   z-index: 1;
   pointer-events: none;
 }
 
-/* CSS fallback if WebGL unavailable */
-.dc-shader-fallback::after {
+@keyframes dcColorWash {
+  0%   { background-position: 0% 0%; }
+  50%  { background-position: 100% 100%; }
+  100% { background-position: 0% 0%; }
+}
+
+/* Diagonal light leak sweep */
+.login-img_wrap::after {
   content: '';
   position: absolute;
   inset: 0;
   background: linear-gradient(
-    135deg,
-    rgba(10, 22, 42, 0.6) 0%,
-    rgba(26, 58, 82, 0.3) 100%
+    125deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.08) 55%,
+    transparent 65%,
+    transparent 100%
   );
-  animation: dcFallbackPulse 8s ease-in-out infinite alternate;
+  background-size: 250% 100%;
+  animation: dcLightLeak 8s ease-in-out infinite;
   z-index: 2;
+  pointer-events: none;
 }
 
-@keyframes dcFallbackPulse {
-  from { opacity: 0.5; }
-  to   { opacity: 0.8; }
+@keyframes dcLightLeak {
+  0%   { background-position: 150% center; opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { background-position: -50% center; opacity: 0; }
 }
 
-/* ═══════════════════════════════════════════════════════
-   2. FLOATING PARTICLES in image area
-   ═══════════════════════════════════════════════════════ */
-
-.dc-particles {
+/* Bottom-edge soft vignette for depth */
+.dc-vignette {
   position: absolute;
   inset: 0;
-  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    transparent 40%,
+    rgba(10, 22, 42, 0.35) 100%
+  );
   z-index: 3;
-  overflow: hidden;
-}
-
-.dc-particle {
-  position: absolute;
-  left: var(--x);
-  top: var(--y);
-  width: var(--s);
-  height: var(--s);
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.55);
-  animation: dcParticleFloat var(--d) ease-in-out var(--delay) infinite alternate;
-  box-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
-}
-
-@keyframes dcParticleFloat {
-  0%   { transform: translateY(0)    scale(1);    opacity: 0.2; }
-  50%  { transform: translateY(-18px) scale(1.1); opacity: 0.7; }
-  100% { transform: translateY(-6px)  scale(0.9); opacity: 0.3; }
+  pointer-events: none;
 }
 
 /* ═══════════════════════════════════════════════════════
-   3. FORM SIDE — glass morphism card
+   2. FORM SIDE — glass morphism card
    ═══════════════════════════════════════════════════════ */
 
 .login-form_content {
@@ -136,7 +113,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   4. CARD ENTRANCE
+   3. CARD ENTRANCE
    ═══════════════════════════════════════════════════════ */
 
 .login-form_content {
@@ -153,7 +130,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   5. STAGGERED FORM CHILDREN
+   4. STAGGERED FORM CHILDREN
    ═══════════════════════════════════════════════════════ */
 
 .dc-animate-in > * {
@@ -178,7 +155,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   6. FORM HEADER — icon, title, subtitle
+   5. FORM HEADER — icon, title, subtitle
    ═══════════════════════════════════════════════════════ */
 
 /* Circular icon entrance */
@@ -230,45 +207,13 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   7. INPUT FIELDS
+   6. INPUT FIELDS — focus glow only (no underline)
    ═══════════════════════════════════════════════════════ */
 
-.formfieldwrapper {
-  position: relative;
-}
-
-/* Animated focus underline appended by JS */
-.dc-focus-line {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  width: 0;
-  height: 2px;
-  background: linear-gradient(90deg, #1a3a52, #3a7a8a, #1a3a52);
-  background-size: 200% auto;
-  border-radius: 2px;
-  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1),
-              left 0.45s cubic-bezier(0.22, 1, 0.36, 1);
-  pointer-events: none;
-}
-
-.dc-field-focused .dc-focus-line {
-  width: 100%;
-  left: 0;
-  animation: dcLineShimmer 2s linear infinite;
-}
-
-@keyframes dcLineShimmer {
-  0%   { background-position: 0% center; }
-  100% { background-position: 200% center; }
-}
-
-/* Input transitions */
 .uui-form_input,
 .w-input {
   transition: border-color 0.3s ease,
-              box-shadow 0.3s ease,
-              transform 0.25s cubic-bezier(0.22, 1, 0.36, 1) !important;
+              box-shadow 0.3s ease !important;
 }
 
 .uui-form_input:focus,
@@ -277,29 +222,21 @@
   box-shadow:
     0 0 0 3px rgba(26, 58, 82, 0.06),
     0 2px 8px rgba(26, 58, 82, 0.07) !important;
-  transform: translateY(-1px);
   outline: none !important;
 }
 
-/* Label color shift on focus */
-.dc-field-focused .labeltext {
-  color: #1a3a52 !important;
-  transition: color 0.3s ease;
-}
-
 /* ═══════════════════════════════════════════════════════
-   8. SUBMIT BUTTON
-   Note: the button is input[type="submit"] so ::before
-   won't work on it — shimmer targets the wrapper div
+   7. SUBMIT BUTTON
+   No overflow-hidden — avoids clipping button hover lift.
+   Shimmer contained via clip-path on the pseudo-element.
    ═══════════════════════════════════════════════════════ */
 
 .submitbuttonwrapper {
   position: relative;
-  overflow: hidden;
   border-radius: inherit;
 }
 
-/* Shimmer sweep on wrapper */
+/* Shimmer sweep — clip-path keeps it inside the button shape */
 .submitbuttonwrapper::before {
   content: '';
   position: absolute;
@@ -315,6 +252,8 @@
   );
   pointer-events: none;
   z-index: 10;
+  border-radius: inherit;
+  clip-path: inset(0 round inherit);
 }
 
 .submitbuttonwrapper:hover::before {
@@ -326,27 +265,24 @@
   to   { left: 100%; }
 }
 
-/* Button itself */
+/* Button itself — shadow + brightness only, no translateY */
 .submitbutton,
 [data-portal="submit"] {
-  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.3s ease,
+  transition: box-shadow 0.3s ease,
               filter 0.3s ease !important;
   cursor: pointer;
 }
 
 .submitbutton:hover,
 [data-portal="submit"]:hover {
-  transform: translateY(-2px) !important;
   box-shadow: 0 6px 22px rgba(26, 58, 82, 0.28),
               0 2px 6px rgba(26, 58, 82, 0.14) !important;
-  filter: brightness(1.04);
+  filter: brightness(1.06);
 }
 
 .submitbutton:active,
 [data-portal="submit"]:active {
-  transform: translateY(0) scale(0.98) !important;
-  filter: brightness(0.98);
+  filter: brightness(0.96);
 }
 
 /* Ripple effect (span injected by JS into wrapper) */
@@ -370,7 +306,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   9. EMAIL LINK UNDERLINE
+   8. EMAIL LINK UNDERLINE
    ═══════════════════════════════════════════════════════ */
 
 .text-hyperlink {
@@ -394,7 +330,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   10. ERROR MESSAGE
+   9. ERROR MESSAGE
    ═══════════════════════════════════════════════════════ */
 
 [data-portal="error"].error-message {
@@ -410,14 +346,12 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   11. REDUCED MOTION
+   10. REDUCED MOTION
    ═══════════════════════════════════════════════════════ */
 
 @media (prefers-reduced-motion: reduce) {
   .login-form_content,
   .login-hero_img,
-  #dc-shader,
-  .dc-particle,
   .dc-animate-in > *,
   .dc-child-animate {
     animation: none !important;
@@ -425,10 +359,15 @@
     transform: none !important;
     filter: none !important;
   }
+
+  .login-img_wrap::before,
+  .login-img_wrap::after {
+    animation: none !important;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════
-   12. RESPONSIVE
+   11. RESPONSIVE
    ═══════════════════════════════════════════════════════ */
 
 @media (max-width: 991px) {
@@ -437,18 +376,9 @@
     transform: none !important;
     transform-style: flat !important;
   }
-
-  /* Particles hidden on small screens */
-  .dc-particles {
-    display: none;
-  }
 }
 
 @media (max-width: 767px) {
-  #dc-shader {
-    opacity: 0.65;
-  }
-
   .login-form_content {
     backdrop-filter: blur(16px) saturate(1.2) !important;
     -webkit-backdrop-filter: blur(16px) saturate(1.2) !important;
@@ -456,5 +386,10 @@
 
   .dc-animate-in > * {
     animation-delay: calc(0.25s + var(--dc-i, 0) * 0.06s);
+  }
+
+  /* Simpler Ken Burns on mobile */
+  .login-hero_img {
+    animation-duration: 30s;
   }
 }
