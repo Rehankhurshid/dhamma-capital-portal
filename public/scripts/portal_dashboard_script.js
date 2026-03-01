@@ -349,7 +349,7 @@
       }
 
       const clickedDownloadButton = e.target && typeof e.target.closest === 'function'
-        ? e.target.closest('[data-portal="doc-download-button"], [data-action="download"], .doc-download-button')
+        ? e.target.closest('[data-portal="doc-download-button"], [data-action="download"], .doc-download-button, a[download]')
         : null;
 
       const isCardAnchor = card.tagName === 'A';
@@ -360,7 +360,9 @@
       if (isLinkClick && hasToken && downloadUrl !== '#') {
         e.preventDefault();
         void logDocumentAccess(doc.id);
-        const downloadTarget = clickedDownloadButton || clickedLink;
+        const downloadTarget = clickedDownloadButton ||
+          (clickedLink && /download/i.test(String(clickedLink.textContent || '')) ? clickedLink : null) ||
+          clickedLink;
         setDownloadProcessingState(downloadTarget, true);
         void downloadWithAuthToken(downloadUrl, doc.title || 'Document')
           .then(function(success) {
@@ -1796,6 +1798,20 @@
       }
     }
 
+    let fallbackSpinner = target.querySelector('[data-portal="doc-download-spinner"]');
+    if (!iconTarget) {
+      if (active && !fallbackSpinner) {
+        fallbackSpinner = document.createElement('span');
+        fallbackSpinner.setAttribute('data-portal', 'doc-download-spinner');
+        fallbackSpinner.className = 'portal-inline-spinner';
+        fallbackSpinner.setAttribute('aria-hidden', 'true');
+        target.appendChild(fallbackSpinner);
+      }
+      if (!active && fallbackSpinner && fallbackSpinner.parentNode) {
+        fallbackSpinner.parentNode.removeChild(fallbackSpinner);
+      }
+    }
+
     const labelTarget = target.querySelector('[data-portal="doc-download-label"]');
     if (labelTarget) {
       if (!labelTarget.getAttribute('data-download-original-label')) {
@@ -1849,6 +1865,7 @@
         '.portal-toast{pointer-events:none;opacity:0;transform:translateY(8px);transition:opacity .2s ease,transform .2s ease;background:#17365d;color:#fff;padding:10px 12px;border-radius:10px;font-size:13px;box-shadow:0 10px 26px rgba(0,0,0,.18);}' +
         '.portal-toast.is-visible{opacity:1;transform:translateY(0);}' +
         '.portal-toast.is-error{background:#9b1c1c;}' +
+        '.portal-inline-spinner{display:inline-block;width:12px;height:12px;margin-left:8px;border:2px solid currentColor;border-top-color:transparent;border-radius:999px;animation:portalSpin .8s linear infinite;vertical-align:middle;}' +
         '.is-spinning{display:inline-block;animation:portalSpin .8s linear infinite;}' +
         '@keyframes portalSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
       document.head.appendChild(style);
