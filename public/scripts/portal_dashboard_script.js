@@ -30,6 +30,7 @@
   let customDateEndInput = null;
   let customDateApplyButton = null;
   let customDateRangeInput = null;
+  let customDateOpenButton = null;
   let customDatePicker = null;
   let customDatePickerReady = false;
   let filtersResetButton = null;
@@ -429,6 +430,7 @@
     customDateEndInput = document.querySelector('[data-portal="custom-date-end"]');
     customDateApplyButton = document.querySelector('[data-portal="custom-date-apply"]');
     customDateRangeInput = document.querySelector('[data-portal="custom-date-range"]');
+    customDateOpenButton = document.querySelector('[data-portal="custom-date-open"]');
     filtersResetButton = document.querySelector('[data-portal="filters-reset"]');
     setupEmbeddedDateRangePicker();
 
@@ -512,6 +514,13 @@
       });
     }
 
+    if (customDateOpenButton) {
+      customDateOpenButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        openCustomDatePicker();
+      });
+    }
+
     if (filtersResetButton) {
       filtersResetButton.addEventListener('click', function(e) {
         e.preventDefault();
@@ -563,6 +572,7 @@
       '<button type="button" data-portal="report-filter" data-filter-value="custom" aria-pressed="false" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Custom Date Range</button>' +
       '</div>' +
       '<div data-portal="custom-date-controls" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;">' +
+      '<button type="button" data-portal="custom-date-open" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Select Date Range</button>' +
       '<input type="text" data-portal="custom-date-range" readonly aria-label="Custom date range" placeholder="Select date range" style="border:1px solid rgba(16,40,70,0.22);border-radius:10px;padding:8px 10px;background:#fff;color:#17365d;min-width:220px;">' +
       '<input type="date" data-portal="custom-date-start" aria-label="Custom start date" style="border:1px solid rgba(16,40,70,0.22);border-radius:10px;padding:8px 10px;background:#fff;color:#17365d;">' +
       '<input type="date" data-portal="custom-date-end" aria-label="Custom end date" style="border:1px solid rgba(16,40,70,0.22);border-radius:10px;padding:8px 10px;background:#fff;color:#17365d;">' +
@@ -805,6 +815,9 @@
 
   function ensureCustomDateControlsWiring() {
     if (!customDateControls) return;
+    if (!customDateOpenButton) {
+      customDateOpenButton = customDateControls.querySelector('[data-portal="custom-date-open"]');
+    }
 
     if (!customDateRangeInput) {
       customDateRangeInput = document.createElement('input');
@@ -819,6 +832,15 @@
       customDateRangeInput.style.background = '#fff';
       customDateRangeInput.style.color = '#17365d';
       customDateRangeInput.style.minWidth = '220px';
+      if (customDateOpenButton) {
+        customDateRangeInput.style.position = 'absolute';
+        customDateRangeInput.style.width = '1px';
+        customDateRangeInput.style.height = '1px';
+        customDateRangeInput.style.padding = '0';
+        customDateRangeInput.style.border = '0';
+        customDateRangeInput.style.opacity = '0';
+        customDateRangeInput.style.pointerEvents = 'none';
+      }
       customDateControls.insertBefore(customDateRangeInput, customDateControls.firstChild);
     }
 
@@ -867,6 +889,16 @@
       return;
     }
     customDateRangeInput.value = '';
+  }
+
+  function openCustomDatePicker() {
+    if (customDatePicker && typeof customDatePicker.show === 'function') {
+      customDatePicker.show();
+      return;
+    }
+    if (!customDateRangeInput) return;
+    customDateRangeInput.focus();
+    customDateRangeInput.click();
   }
 
   function updateCustomDateApplyState() {
