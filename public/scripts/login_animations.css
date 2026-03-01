@@ -1,39 +1,13 @@
 /**
  * Login Page Animations — Dhamma Capital
- * WebGL shader canvas + glass morphism + entrance animations
+ * Glass morphism + entrance animations + micro-interactions
  *
  * Load in Webflow Page Settings → Inside <head> tag:
  *   <link rel="stylesheet" href="<DEPLOY_URL>/scripts/login_animations.css">
  */
 
 /* ═══════════════════════════════════════════════════════
-   1. HERO IMAGE — WebGL shader canvas overlay
-   CSS handles positioning; JS handles the shader rendering.
-   ═══════════════════════════════════════════════════════ */
-
-.login-img_wrap {
-  position: relative;
-  overflow: hidden;
-}
-
-/* WebGL canvas — covers the image container */
-#dc-shader {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: auto;
-  display: block;
-}
-
-/* The original image stays visible until the shader texture loads,
-   then JS sets opacity: 0 on it. Keep it behind the canvas. */
-.login-hero_img {
-  transition: opacity 0.8s ease;
-  will-change: opacity;
-}
-
-/* ═══════════════════════════════════════════════════════
-   2. FORM SIDE — glass morphism card
+   1. FORM SIDE — glass morphism card
    ═══════════════════════════════════════════════════════ */
 
 .login-form_content {
@@ -52,7 +26,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   3. CARD ENTRANCE
+   2. CARD ENTRANCE
    ═══════════════════════════════════════════════════════ */
 
 .login-form_content {
@@ -69,7 +43,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   4. STAGGERED FORM CHILDREN
+   3. STAGGERED FORM CHILDREN
    ═══════════════════════════════════════════════════════ */
 
 .dc-animate-in > * {
@@ -101,7 +75,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   5. FORM HEADER — icon, title, subtitle
+   4. FORM HEADER — icon, title, subtitle
    ═══════════════════════════════════════════════════════ */
 
 /* Circular icon entrance */
@@ -153,7 +127,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   6. INPUT FIELDS — focus glow only (no underline)
+   5. INPUT FIELDS — focus glow only (no underline)
    ═══════════════════════════════════════════════════════ */
 
 .uui-form_input,
@@ -172,7 +146,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   7. SUBMIT BUTTON
+   6. SUBMIT BUTTON
    No overflow-hidden — avoids clipping button hover lift.
    Shimmer contained via clip-path on the pseudo-element.
    ═══════════════════════════════════════════════════════ */
@@ -252,7 +226,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   8. EMAIL LINK UNDERLINE
+   7. EMAIL LINK UNDERLINE
    ═══════════════════════════════════════════════════════ */
 
 .text-hyperlink {
@@ -276,7 +250,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   9. ERROR MESSAGE
+   8. ERROR MESSAGE
    ═══════════════════════════════════════════════════════ */
 
 [data-portal="error"].error-message {
@@ -292,7 +266,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   10. REDUCED MOTION
+   9. REDUCED MOTION
    ═══════════════════════════════════════════════════════ */
 
 @media (prefers-reduced-motion: reduce) {
@@ -305,15 +279,10 @@
     filter: none !important;
   }
 
-  /* Shader still renders one static frame via JS,
-     so we just hide any CSS-level animation artifacts */
-  .login-hero_img {
-    opacity: 1 !important;
-  }
 }
 
 /* ═══════════════════════════════════════════════════════
-   11. RESPONSIVE
+   10. RESPONSIVE
    ═══════════════════════════════════════════════════════ */
 
 @media (max-width: 991px) {
