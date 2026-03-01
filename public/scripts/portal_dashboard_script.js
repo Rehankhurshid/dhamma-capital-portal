@@ -441,7 +441,7 @@
     if (sortSelect) {
       currentSortOrder = normalizeSortOrder(sortSelect.value);
       sortSelect.addEventListener('change', function() {
-        setSortOrder(sortSelect.value);
+        setSortOrder(sortSelect.value, null, false);
       });
     } else if (sortDropdown) {
       const activeSortOption = sortOptionLinks.find(function(link) {
@@ -455,7 +455,7 @@
       sortOptionLinks.forEach(function(link) {
         link.addEventListener('click', function(e) {
           e.preventDefault();
-          setSortOrder(getSortOptionValue(link));
+          setSortOrder(getSortOptionValue(link), link, true);
         });
       });
     }
@@ -605,18 +605,22 @@
     return 'newest';
   }
 
-  function setSortOrder(value) {
+  function setSortOrder(value, selectedOptionElement, shouldCloseDropdown) {
     currentSortOrder = normalizeSortOrder(value);
-    syncSortUI();
+    syncSortUI(selectedOptionElement);
+    if (shouldCloseDropdown) {
+      closeSortDropdown();
+    }
     applyFiltersAndRender();
   }
 
-  function syncSortUI() {
+  function syncSortUI(selectedOptionElement) {
     if (sortSelect) {
       sortSelect.value = currentSortOrder;
     }
     if (sortDropdown) {
       sortDropdown.setAttribute('data-sort-value', currentSortOrder);
+      updateSortDropdownLabel(selectedOptionElement);
     }
     if (!sortOptionLinks.length) return;
 
@@ -624,9 +628,79 @@
       const value = getSortOptionValue(link);
       const isActive = value === currentSortOrder;
       link.classList.toggle('is-active', isActive);
+      link.classList.toggle('is-selected', isActive);
       link.classList.toggle('w--current', isActive);
       link.setAttribute('aria-current', isActive ? 'true' : 'false');
+      link.setAttribute('aria-selected', isActive ? 'true' : 'false');
     });
+  }
+
+  function updateSortDropdownLabel(selectedOptionElement) {
+    if (!sortDropdown) return;
+    const labelEl = getSortDropdownLabelElement();
+    if (!labelEl) return;
+
+    let label = '';
+    if (selectedOptionElement) {
+      label = String(selectedOptionElement.textContent || '').trim();
+    }
+    if (!label) {
+      const activeOption = sortOptionLinks.find(function(link) {
+        return getSortOptionValue(link) === currentSortOrder;
+      });
+      if (activeOption) {
+        label = String(activeOption.textContent || '').trim();
+      }
+    }
+    if (!label) {
+      label = getSortLabelByValue(currentSortOrder);
+    }
+
+    if (!labelEl.getAttribute('data-default-sort-label')) {
+      labelEl.setAttribute('data-default-sort-label', String(labelEl.textContent || '').trim() || 'Sort by');
+    }
+    labelEl.textContent = label || labelEl.getAttribute('data-default-sort-label') || 'Sort by';
+  }
+
+  function getSortDropdownLabelElement() {
+    if (!sortDropdown) return null;
+
+    const toggle = sortDropdown.querySelector('.w-dropdown-toggle') || sortDropdown;
+    const explicit = toggle.querySelector('[data-portal="sort-label"]');
+    if (explicit) return explicit;
+
+    const directChildren = Array.prototype.slice.call(toggle.children || []);
+    const firstTextChild = directChildren.find(function(child) {
+      return child && child.children && child.children.length === 0 && String(child.textContent || '').trim().length > 0;
+    });
+    if (firstTextChild) return firstTextChild;
+
+    return toggle;
+  }
+
+  function getSortLabelByValue(value) {
+    if (value === 'oldest') return 'Oldest';
+    if (value === 'titleasc') return 'Name: A to Z';
+    if (value === 'titledesc') return 'Name: Z to A';
+    return 'Newest';
+  }
+
+  function closeSortDropdown() {
+    if (!sortDropdown) return;
+    const container = sortDropdown.classList.contains('w-dropdown')
+      ? sortDropdown
+      : sortDropdown.closest('.w-dropdown') || sortDropdown;
+    const toggle = container.querySelector('.w-dropdown-toggle');
+    const list = container.querySelector('.w-dropdown-list');
+
+    container.classList.remove('w--open');
+    if (toggle) {
+      toggle.classList.remove('w--open');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+    if (list) {
+      list.classList.remove('w--open');
+    }
   }
 
   function getSortOptionLinks() {
