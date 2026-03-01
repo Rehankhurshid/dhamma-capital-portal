@@ -926,10 +926,6 @@
     ensureMobileDatePickers();
     updateCustomDateApplyState();
     updateDatePickerTriggerText();
-    if (shouldUseNativeDateRangePickerOnly()) {
-      customDatePickerReady = true;
-      return;
-    }
     if (customDatePickerReady) return;
 
     loadLitepickerAssets()
@@ -1097,12 +1093,6 @@
   function isMobileViewport() {
     if (window.matchMedia && window.matchMedia('(max-width: 767px)').matches) return true;
     if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches && window.innerWidth <= 991) return true;
-    return false;
-  }
-
-  function shouldUseNativeDateRangePickerOnly() {
-    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return true;
-    if (window.matchMedia && window.matchMedia('(hover: none)').matches && window.matchMedia('(max-width: 1024px)').matches) return true;
     return false;
   }
 
