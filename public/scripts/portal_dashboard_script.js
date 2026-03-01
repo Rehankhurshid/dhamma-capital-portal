@@ -540,6 +540,7 @@
     }
 
     updateCustomDateControlsVisibility();
+    syncDatePickerTriggerState();
     updateCustomDateApplyState();
   }
 
@@ -1045,6 +1046,7 @@
       syncRangeInputFromDates();
     }
     updateDatePickerTriggerText();
+    syncDatePickerTriggerState();
     updateCustomDateApplyState();
     if (shouldApply) {
       applyFiltersAndRender();
@@ -1198,6 +1200,17 @@
       }
 
       target.textContent = label || target.getAttribute('data-default-date-label') || 'Date Range';
+    });
+  }
+
+  function syncDatePickerTriggerState() {
+    if (!customDateOpenButtons.length) return;
+    const hasActiveRange = Boolean(String(customDateStart || '').trim() || String(customDateEnd || '').trim());
+
+    customDateOpenButtons.forEach(function(btn) {
+      btn.classList.toggle('is-active', hasActiveRange);
+      btn.setAttribute('aria-pressed', hasActiveRange ? 'true' : 'false');
+      btn.setAttribute('data-date-range-active', hasActiveRange ? 'true' : 'false');
     });
   }
 
@@ -1410,6 +1423,8 @@
     if (customDatePicker && typeof customDatePicker.clearSelection === 'function') {
       customDatePicker.clearSelection();
     }
+    updateDatePickerTriggerText();
+    syncDatePickerTriggerState();
 
     syncReportFilterButtons();
     updateCustomDateControlsVisibility();
