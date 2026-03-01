@@ -691,7 +691,7 @@
     const container = sortDropdown.classList.contains('w-dropdown')
       ? sortDropdown
       : sortDropdown.closest('.w-dropdown') || sortDropdown;
-    const toggle = container.querySelector('.w-dropdown-toggle');
+    const toggle = getSortDropdownToggle();
     const list = container.querySelector('.w-dropdown-list');
     const isOpen = container.classList.contains('w--open') ||
       (toggle && toggle.getAttribute('aria-expanded') === 'true') ||
@@ -714,6 +714,15 @@
     if (list) {
       list.classList.remove('w--open');
     }
+  }
+
+  function getSortDropdownToggle() {
+    const sortControl = document.querySelector('[data-portal="sort-select"]:not(select):not(input):not(textarea)');
+    if (!sortControl) return null;
+    if (sortControl.classList.contains('w-dropdown-toggle')) {
+      return sortControl;
+    }
+    return sortControl.querySelector('.w-dropdown-toggle');
   }
 
   function getSortOptionLinks() {
