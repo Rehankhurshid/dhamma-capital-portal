@@ -90,33 +90,48 @@
     if (!el) return;
 
     var original = el.textContent;
-    var chars = '⣿⡿⣻⢟⡛⠿⣽⢯⡷⣯░▒▓█▀▄■□◆◇●○◌⌐¬¤§¶×÷±≈∞∑∏∫≠≤≥⊕⊗⊞⊟';
+    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     var len = original.length;
 
-    /* Scramble a percentage of characters (0 = fully clear, 1 = fully scrambled) */
-    function scramble(amount) {
+    function randomChar() {
+      return chars[Math.floor(Math.random() * chars.length)];
+    }
+
+    /* Decrypt frame: reveal clear text from left to right */
+    function renderDecrypt(progress) {
+      var revealUntil = Math.floor(len * progress);
       var result = '';
       for (var i = 0; i < len; i++) {
         if (original[i] === ' ') {
           result += ' ';
-        } else if (Math.random() < amount) {
-          result += chars[Math.floor(Math.random() * chars.length)];
         } else {
-          result += original[i];
+          result += i < revealUntil ? original[i] : randomChar();
         }
       }
       el.textContent = result;
     }
 
-    /* Animate from one scramble level to another over duration ms */
-    function animate(fromAmt, toAmt, duration, cb) {
+    /* Encrypt frame: scramble text from right to left */
+    function renderEncrypt(progress) {
+      var keepUntil = len - Math.floor(len * progress);
+      var result = '';
+      for (var i = 0; i < len; i++) {
+        if (original[i] === ' ') {
+          result += ' ';
+        } else {
+          result += i < keepUntil ? original[i] : randomChar();
+        }
+      }
+      el.textContent = result;
+    }
+
+    function animateFrame(renderer, duration, cb) {
       var start = performance.now();
       function tick(now) {
         var t = Math.min((now - start) / duration, 1);
         /* Ease in-out */
         var ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-        var amt = fromAmt + (toAmt - fromAmt) * ease;
-        scramble(amt);
+        renderer(ease);
         if (t < 1) {
           requestAnimationFrame(tick);
         } else {
@@ -128,13 +143,13 @@
 
     /* Cycle: decrypt → hold clear → encrypt → hold scrambled → repeat */
     function cycle() {
-      /* Start scrambled, decrypt over 1.2s */
-      animate(0.85, 0, 1200, function () {
+      /* Decrypt over 1.2s */
+      animateFrame(renderDecrypt, 1200, function () {
         el.textContent = original; /* ensure clean */
         /* Hold clear for 5s */
         setTimeout(function () {
           /* Encrypt over 0.8s */
-          animate(0, 0.85, 800, function () {
+          animateFrame(renderEncrypt, 800, function () {
             /* Hold scrambled for 1.5s */
             setTimeout(cycle, 1500);
           });
@@ -143,7 +158,7 @@
     }
 
     /* Initial state: scrambled */
-    scramble(0.85);
+    renderDecrypt(0);
     /* Wait for entrance animation to finish, then start cycle */
     setTimeout(cycle, 1800);
   }
