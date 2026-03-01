@@ -90,11 +90,14 @@
     if (!el) return;
 
     var original = el.textContent;
-    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    var alphaChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    var symbolChars = '@#$%&*+-=?';
+    var symbolWeight = 0.2; /* Keep symbols subtle so it still reads as premium/cipher */
     var len = original.length;
 
     function randomChar() {
-      return chars[Math.floor(Math.random() * chars.length)];
+      var pool = Math.random() < symbolWeight ? symbolChars : alphaChars;
+      return pool[Math.floor(Math.random() * pool.length)];
     }
 
     /* Decrypt frame: reveal clear text from left to right */
