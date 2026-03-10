@@ -75,7 +75,11 @@ function isDocumentCategoryReferenceField(field: Record<string, unknown>): boole
         key === "document category" ||
         key === "document_category" ||
         key === "document-category" ||
-        key.startsWith("document-category-")
+        key.startsWith("document-category-") ||
+        key === "type of reports" ||
+        key === "type_of_reports" ||
+        key === "type-of-reports" ||
+        key.startsWith("type-of-reports-")
     );
 }
 
