@@ -18,6 +18,7 @@
   let currentVisibleCount = 0;
   let currentSortOrder = 'newest';
   let currentReportFilter = 'all';
+  let availableCategories = [];
   let customDateStart = '';
   let customDateEnd = '';
   let searchClearButton = null;
@@ -162,12 +163,74 @@
         if (!data) return;
         if (data.documents) {
           allDocuments = Array.isArray(data.documents) ? data.documents : [];
+          availableCategories = normalizeAvailableCategories(
+            Array.isArray(data.categories) ? data.categories : deriveAvailableCategoriesFromDocuments(allDocuments)
+          );
+          syncCurrentReportFilter();
+          renderCategoryFilterButtons();
+          bindReportFilterButtons();
           applyFiltersAndRender();
         }
       })
       .catch(function(err) {
         console.error('Documents fetch failed:', err);
       });
+  }
+
+  function slugifyFilterValue(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/&/g, ' and ')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  function normalizeAvailableCategories(input) {
+    const list = Array.isArray(input) ? input : [];
+    const seen = new Set();
+
+    return list.map(function(entry) {
+      if (!entry) return null;
+
+      if (typeof entry === 'string') {
+        const name = String(entry).trim();
+        const slug = slugifyFilterValue(name);
+        if (!name || !slug) return null;
+        return { name: name, slug: slug };
+      }
+
+      const name = String(entry.name || entry.label || entry.value || '').trim();
+      const slug = slugifyFilterValue(entry.slug || name);
+      if (!name || !slug) return null;
+      return { name: name, slug: slug };
+    }).filter(function(entry) {
+      if (!entry || seen.has(entry.slug)) return false;
+      seen.add(entry.slug);
+      return true;
+    });
+  }
+
+  function deriveAvailableCategoriesFromDocuments(docs) {
+    return normalizeAvailableCategories((Array.isArray(docs) ? docs : []).map(function(doc) {
+      return {
+        name: doc && doc.category ? String(doc.category) : '',
+        slug: doc && doc.category_slug ? String(doc.category_slug) : ''
+      };
+    }));
+  }
+
+  function getCategoryBySlug(slug) {
+    const normalized = normalizeReportFilter(slug);
+    return availableCategories.find(function(category) {
+      return category.slug === normalized;
+    }) || null;
+  }
+
+  function syncCurrentReportFilter() {
+    if (currentReportFilter === 'all' || currentReportFilter === 'custom') return;
+    if (!getCategoryBySlug(currentReportFilter)) {
+      currentReportFilter = 'all';
+    }
   }
   
   function applyFiltersAndRender() {
@@ -514,27 +577,7 @@
       });
     }
     syncSortUI();
-
-    if (reportFilterButtons.length) {
-      const activeButton = reportFilterButtons.find(function(btn) {
-        return btn.classList.contains('is-active');
-      });
-      currentReportFilter = normalizeReportFilter(activeButton ? activeButton.getAttribute('data-filter-value') : 'all');
-
-      reportFilterButtons.forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
-          e.preventDefault();
-          const value = normalizeReportFilter(btn.getAttribute('data-filter-value'));
-          if (btn.getAttribute('data-filter-value') === 'custom') {
-            openCustomDatePicker();
-            return;
-          }
-          setReportFilter(value);
-        });
-      });
-
-      syncReportFilterButtons();
-    }
+    bindReportFilterButtons();
 
     if (customDateStartInput) {
       customDateStart = String(customDateStartInput.value || '').trim();
@@ -627,12 +670,7 @@
       '</label>' +
       '<button type="button" data-portal="filters-reset" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Reset</button>' +
       '</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-      '<button type="button" class="is-active" data-portal="report-filter" data-filter-value="all" aria-pressed="true" style="border:1px solid rgba(16,40,70,0.18);background:#17365d;color:#fff;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">All</button>' +
-      '<button type="button" data-portal="report-filter" data-filter-value="monthly" aria-pressed="false" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Monthly Reports</button>' +
-      '<button type="button" data-portal="report-filter" data-filter-value="quarterly" aria-pressed="false" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Quarterly Reports</button>' +
-      '<button type="button" data-portal="report-filter" data-filter-value="yearly" aria-pressed="false" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Yearly / Annual Reports</button>' +
-      '<button type="button" data-portal="report-filter" data-filter-value="custom" aria-pressed="false" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Custom Date Range</button>' +
+      '<div data-portal="report-filter-host" style="display:flex;gap:8px;flex-wrap:wrap;"></div>' +
       '</div>' +
       '<div data-portal="custom-date-controls" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;">' +
       '<button type="button" data-portal="custom-date-open" style="border:1px solid rgba(16,40,70,0.18);background:#fff;color:#17365d;border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;">Select Date Range</button>' +
@@ -956,21 +994,109 @@
     if (!node) return '';
 
     const raw = String(node.textContent || '').toLowerCase();
-    if (raw.includes('monthly')) return 'monthly';
-    if (raw.includes('quarterly') || /\bq[1-4]\b/.test(raw)) return 'quarterly';
-    if (raw.includes('yearly') || raw.includes('annual')) return 'yearly';
-    if (raw.includes('custom')) return 'custom';
     if (raw.includes('all')) return 'all';
-
-    return '';
+    if (raw.includes('custom')) return 'custom';
+    return slugifyFilterValue(raw);
   }
 
   function normalizeReportFilter(value) {
-    const normalized = String(value || '').toLowerCase();
-    if (normalized === 'monthly' || normalized === 'quarterly' || normalized === 'yearly') {
-      return normalized;
+    const normalized = slugifyFilterValue(value);
+    if (!normalized) return 'all';
+    if (normalized === 'all' || normalized === 'custom') return normalized;
+    return normalized;
+  }
+
+  function bindReportFilterButtons() {
+    reportFilterButtons = getReportFilterButtons();
+    if (!reportFilterButtons.length) return;
+
+    const activeButton = reportFilterButtons.find(function(btn) {
+      return btn.classList.contains('is-active');
+    });
+    currentReportFilter = normalizeReportFilter(activeButton ? activeButton.getAttribute('data-filter-value') : currentReportFilter);
+    syncCurrentReportFilter();
+
+    reportFilterButtons.forEach(function(btn) {
+      if (btn.__portalReportFilterBound) return;
+      btn.__portalReportFilterBound = true;
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const value = normalizeReportFilter(btn.getAttribute('data-filter-value'));
+        if (value === 'custom') {
+          openCustomDatePicker();
+          return;
+        }
+        setReportFilter(value);
+      });
+    });
+
+    syncReportFilterButtons();
+  }
+
+  function getReportFilterHost() {
+    const explicitHost = document.querySelector('[data-portal="report-filter-host"]');
+    if (explicitHost) return explicitHost;
+    if (reportFilterButtons.length && reportFilterButtons[0].parentElement) {
+      reportFilterButtons[0].parentElement.setAttribute('data-portal', 'report-filter-host');
+      return reportFilterButtons[0].parentElement;
     }
-    return 'all';
+    return null;
+  }
+
+  function cloneFilterTemplate(template, label, value, isActive) {
+    const control = template
+      ? template.cloneNode(true)
+      : document.createElement('button');
+
+    if (!template) {
+      control.type = 'button';
+      control.style.border = '1px solid rgba(16,40,70,0.18)';
+      control.style.borderRadius = '999px';
+      control.style.padding = '8px 12px';
+      control.style.fontSize = '12px';
+      control.style.cursor = 'pointer';
+    }
+
+    control.textContent = label;
+    control.setAttribute('data-portal', 'report-filter');
+    control.setAttribute('data-filter-value', value);
+    control.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    control.classList.toggle('is-active', Boolean(isActive));
+    if (control.tagName && control.tagName.toLowerCase() === 'a') {
+      control.setAttribute('href', '#');
+    }
+    return control;
+  }
+
+  function renderCategoryFilterButtons() {
+    const host = getReportFilterHost();
+    if (!host) return;
+
+    const existingButtons = Array.prototype.slice.call(host.querySelectorAll('[data-portal="report-filter"], a, button'));
+    const allTemplate = existingButtons.find(function(btn) {
+      return normalizeReportFilter(btn.getAttribute('data-filter-value') || btn.textContent) === 'all';
+    }) || existingButtons[0] || null;
+    const categoryTemplate = existingButtons.find(function(btn) {
+      const value = normalizeReportFilter(btn.getAttribute('data-filter-value') || btn.textContent);
+      return value !== 'all' && value !== 'custom';
+    }) || allTemplate;
+
+    host.innerHTML = '';
+    host.appendChild(cloneFilterTemplate(allTemplate, 'All', 'all', currentReportFilter === 'all'));
+
+    availableCategories.forEach(function(category) {
+      host.appendChild(
+        cloneFilterTemplate(
+          categoryTemplate,
+          category.name,
+          category.slug,
+          currentReportFilter === category.slug
+        )
+      );
+    });
+
+    reportFilterButtons = getReportFilterButtons();
+    syncReportFilterButtons();
   }
 
   function setReportFilter(value) {
@@ -1409,29 +1535,20 @@
   function matchesReportFilter(doc) {
     if (currentReportFilter === 'all') return true;
 
-    const category = extractCategoryFilterText(doc);
-    if (!category) return false;
-
-    if (currentReportFilter === 'monthly') {
-      return category.includes('monthly');
-    }
-
-    if (currentReportFilter === 'quarterly') {
-      return category.includes('quarter') ||
-        /\bq[1-4]\b/.test(category);
-    }
-
-    if (currentReportFilter === 'yearly') {
-      return category.includes('yearly') ||
-        category.includes('annual');
-    }
-
-    return true;
+    return extractCategoryFilterSlug(doc) === currentReportFilter;
   }
 
   function extractCategoryFilterText(doc) {
     const raw = doc && doc.category;
     return normalizeCategoryValue(raw);
+  }
+
+  function extractCategoryFilterSlug(doc) {
+    if (doc && doc.category_slug) {
+      return normalizeReportFilter(doc.category_slug);
+    }
+    const category = extractCategoryFilterText(doc);
+    return normalizeReportFilter(category);
   }
 
   function normalizeCategoryValue(value) {
@@ -1454,15 +1571,12 @@
     const summary = document.querySelector('[data-portal="filter-summary"]');
     if (!summary) return;
 
+    const activeCategory = getCategoryBySlug(currentReportFilter);
     const reportLabel = currentReportFilter === 'all'
       ? 'All reports'
-      : currentReportFilter === 'monthly'
-        ? 'Monthly reports'
-        : currentReportFilter === 'quarterly'
-          ? 'Quarterly reports'
-          : currentReportFilter === 'yearly'
-            ? 'Yearly / annual reports'
-            : 'Custom date range';
+      : activeCategory
+        ? activeCategory.name
+        : 'Custom date range';
 
     const sortLabel = currentSortOrder === 'oldest'
       ? 'Earliest first'
