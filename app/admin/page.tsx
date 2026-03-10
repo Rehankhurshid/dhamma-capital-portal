@@ -19,9 +19,5 @@ export default async function AdminPage() {
 
   const data = await loadAdminOverview(cfg);
 
-  return (
-    <main className="admin-page">
-      <AdminDashboardClient initialData={data} />
-    </main>
-  );
+  return <AdminDashboardClient initialData={data} />;
 }
