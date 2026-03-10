@@ -137,6 +137,27 @@
         breadcrumbType.textContent = typeStr + ' - Documents';
       }
 
+      // Show Admin Dashboard button if user is admin
+      if (inv.is_admin) {
+        var adminUrl = API_ORIGIN + '/admin';
+        document.querySelectorAll('[data-portal="logout-button"]').forEach(function(logoutBtn) {
+          var adminBtn = document.createElement('a');
+          adminBtn.href = adminUrl;
+          adminBtn.target = '_blank';
+          adminBtn.rel = 'noopener noreferrer';
+          adminBtn.textContent = 'Admin Dashboard';
+          adminBtn.setAttribute('data-portal', 'admin-button');
+          // Clone the logout button's classes so it looks identical
+          if (logoutBtn.className) {
+            adminBtn.className = logoutBtn.className;
+          }
+          // Insert right before the logout button
+          if (logoutBtn.parentNode) {
+            logoutBtn.parentNode.insertBefore(adminBtn, logoutBtn);
+          }
+        });
+      }
+
       setupLayoutSwitcher();
       setupSearch();
       setupFilters();
