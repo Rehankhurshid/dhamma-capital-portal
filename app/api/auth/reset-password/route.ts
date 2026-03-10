@@ -56,7 +56,10 @@ export async function POST(req: NextRequest) {
             {
                 password,
             },
-            cfg
+            {
+                ...cfg,
+                webflowUseLive: true,
+            }
         );
 
         return NextResponse.json({ ok: true, message: "Password updated successfully." });
