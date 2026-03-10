@@ -334,6 +334,20 @@ export async function getSession(
     }
 }
 
+export async function getSessionFromCookieStore(
+    cookieStore: { get(name: string): { value?: string } | undefined },
+    cfg: ReturnType<typeof getConfig>
+): Promise<SessionPayload | null> {
+    const cookieToken = cookieStore.get(cfg.sessionCookieName)?.value;
+    if (!cookieToken) return null;
+
+    try {
+        return await verifySessionToken(cookieToken, cfg);
+    } catch {
+        return null;
+    }
+}
+
 // ─── Rate limiting via KV ─────────────────────────────────────────────────────
 
 export async function isRateLimited(
