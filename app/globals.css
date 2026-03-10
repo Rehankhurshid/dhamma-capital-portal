@@ -265,6 +265,25 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   flex-wrap: wrap;
 }
 
+.admin-banner {
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-banner.is-success {
+  background: #edf9f3;
+  border: 1px solid #cbeed8;
+  color: #18794e;
+}
+
+.admin-banner.is-error {
+  background: #fff2f3;
+  border: 1px solid #ffd6da;
+  color: #bf1f2d;
+}
+
 .admin-link-button {
   display: inline-flex;
   align-items: center;
@@ -325,6 +344,17 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   overflow: hidden;
 }
 
+.admin-inline-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.admin-inline-form button {
+  width: 100%;
+}
+
 .admin-panel-header {
   margin-bottom: 16px;
 }
@@ -352,6 +382,27 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   padding: 12px 10px;
   border-bottom: 1px solid rgba(17, 60, 90, 0.10);
   vertical-align: top;
+}
+
+.admin-table select {
+  min-width: 160px;
+  height: 40px;
+  font-size: 14px;
+}
+
+.admin-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.admin-checkbox input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
 }
 
 .admin-table th {
@@ -405,6 +456,10 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .admin-header {
     flex-direction: column;
+  }
+
+  .admin-inline-form {
+    grid-template-columns: 1fr;
   }
 
   .admin-header h1 {
