@@ -135,6 +135,26 @@ export function extractFileUrl(fieldData: Record<string, unknown>): string {
 
 // ─── Webflow API ──────────────────────────────────────────────────────────────
 
+export interface CollectionMutationOptions {
+    isArchived?: boolean;
+    isDraft?: boolean;
+    skipInvalidFiles?: boolean;
+    useLive?: boolean;
+    fallbackToDraft?: boolean;
+}
+
+function buildCollectionMutationPayload(
+    fieldData: Record<string, unknown>,
+    options: CollectionMutationOptions = {}
+) {
+    return {
+        isArchived: options.isArchived ?? false,
+        isDraft: options.isDraft ?? false,
+        fieldData,
+        ...(options.skipInvalidFiles ? { skipInvalidFiles: true } : {}),
+    };
+}
+
 export async function webflowFetch(
     relativePath: string,
     cfg: ReturnType<typeof getConfig>,
@@ -186,16 +206,20 @@ export async function listCollectionItems(
 export async function createCollectionItem(
     collectionId: string,
     fieldData: Record<string, unknown>,
-    cfg: ReturnType<typeof getConfig>
+    cfg: ReturnType<typeof getConfig>,
+    options: CollectionMutationOptions = {}
 ): Promise<unknown> {
-    const payload = { isArchived: false, isDraft: false, fieldData };
-    if (cfg.webflowUseLive) {
+    const payload = buildCollectionMutationPayload(fieldData, options);
+    const useLive = options.useLive ?? cfg.webflowUseLive;
+    const fallbackToDraft = options.fallbackToDraft ?? true;
+    if (useLive) {
         try {
             return await webflowFetch(`/collections/${collectionId}/items/live`, cfg, {
                 method: "POST",
                 body: JSON.stringify(payload),
             });
-        } catch {
+        } catch (error) {
+            if (!fallbackToDraft) throw error;
             // fall through to draft
         }
     }
@@ -209,16 +233,20 @@ export async function patchCollectionItem(
     collectionId: string,
     itemId: string,
     fieldData: Record<string, unknown>,
-    cfg: ReturnType<typeof getConfig>
+    cfg: ReturnType<typeof getConfig>,
+    options: CollectionMutationOptions = {}
 ): Promise<unknown> {
-    const payload = { isArchived: false, isDraft: false, fieldData };
-    if (cfg.webflowUseLive) {
+    const payload = buildCollectionMutationPayload(fieldData, options);
+    const useLive = options.useLive ?? cfg.webflowUseLive;
+    const fallbackToDraft = options.fallbackToDraft ?? true;
+    if (useLive) {
         try {
             return await webflowFetch(`/collections/${collectionId}/items/${itemId}/live`, cfg, {
                 method: "PATCH",
                 body: JSON.stringify(payload),
             });
-        } catch {
+        } catch (error) {
+            if (!fallbackToDraft) throw error;
             // fall through to draft
         }
     }

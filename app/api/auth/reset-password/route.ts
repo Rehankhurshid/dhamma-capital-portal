@@ -59,6 +59,10 @@ export async function POST(req: NextRequest) {
             {
                 ...cfg,
                 webflowUseLive: true,
+            },
+            {
+                useLive: true,
+                fallbackToDraft: false,
             }
         );
 

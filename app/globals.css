@@ -297,6 +297,12 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   text-decoration: none;
 }
 
+.admin-secondary-button,
+.admin-tertiary-button,
+.admin-danger-button {
+  width: auto;
+}
+
 .admin-link-button:hover {
   text-decoration: none;
 }
@@ -338,10 +344,54 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   gap: 18px;
 }
 
+.admin-grid-equal {
+  grid-template-columns: 1fr 1fr;
+}
+
 .admin-panel {
   border-radius: 24px;
   padding: 22px;
   overflow: hidden;
+}
+
+.admin-form {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-form-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-form-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-form-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-field {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.admin-field > span {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0d476a;
+}
+
+.admin-inline-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.admin-inline-input .admin-tertiary-button {
+  min-width: 72px;
 }
 
 .admin-inline-form {
@@ -370,6 +420,45 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   line-height: 1.5;
 }
 
+.admin-section-toolbar {
+  margin-top: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-toolbar-meta {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.admin-form-note {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.admin-action-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-action-row > button {
+  width: auto;
+}
+
+.admin-action-row > button:first-child {
+  min-width: 180px;
+}
+
+.admin-table-wrap {
+  margin-top: 16px;
+  overflow-x: auto;
+}
+
 .admin-table {
   width: 100%;
   border-collapse: collapse;
@@ -390,6 +479,21 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   font-size: 14px;
 }
 
+.admin-cell-stack {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-cell-stack span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-inline-link {
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .admin-checkbox {
   display: inline-flex;
   align-items: center;
@@ -405,11 +509,70 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   margin: 0;
 }
 
+.admin-checkbox-box {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+}
+
 .admin-table th {
   color: var(--muted);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.admin-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-secondary-button,
+.admin-tertiary-button,
+.admin-danger-button {
+  border-radius: 999px;
+  min-height: 38px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-secondary-button {
+  background: #edf4f9;
+  color: #0d476a;
+}
+
+.admin-tertiary-button {
+  background: #eef6fb;
+  color: #0f5b87;
+}
+
+.admin-danger-button {
+  background: #fff1f1;
+  color: var(--danger-ink);
+}
+
+.admin-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.admin-pill.is-success {
+  background: #edf9f3;
+  color: #18794e;
+}
+
+.admin-pill.is-muted {
+  background: #eef4f9;
+  color: #5b7388;
 }
 
 .admin-rule-list {
@@ -436,9 +599,26 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   text-align: right;
 }
 
+.admin-note-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-note {
+  border: 1px solid rgba(17, 60, 90, 0.10);
+  border-radius: 16px;
+  padding: 14px 16px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
 @media (max-width: 1024px) {
   .admin-stats,
   .admin-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .admin-form-grid-3 {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -462,6 +642,17 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
     grid-template-columns: 1fr;
   }
 
+  .admin-form-grid-2,
+  .admin-form-grid-3,
+  .admin-section-toolbar,
+  .admin-action-row,
+  .admin-inline-input,
+  .admin-row-actions {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .admin-header h1 {
     font-size: 32px;
   }
@@ -473,5 +664,9 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .admin-rule span {
     text-align: left;
+  }
+
+  .admin-toolbar-meta {
+    white-space: normal;
   }
 }
