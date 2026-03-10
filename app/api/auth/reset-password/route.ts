@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
             cfg.investorsCollectionId,
             item.id,
             {
-                "password-plaintext": password,
+                password,
             },
             cfg
         );
