@@ -254,12 +254,20 @@ async function archiveCollectionItem(
 }
 
 export async function loadAdminOverview(cfg: ReturnType<typeof getConfig>): Promise<AdminOverviewData> {
-    const [investorItems, documentItems, accessGroupItems, categoryItems] = await Promise.all([
+    const notArchived = <T extends { isArchived?: boolean }>(items: T[]): T[] =>
+        items.filter(item => !item.isArchived);
+
+    const [investorItemsRaw, documentItemsRaw, accessGroupItemsRaw, categoryItemsRaw] = await Promise.all([
         listCollectionItems(cfg.investorsCollectionId, cfg),
         listCollectionItems(cfg.documentsCollectionId, cfg),
         listCollectionItems(ACCESS_GROUPS_COLLECTION_ID, cfg),
         listCollectionItems(DOCUMENT_CATEGORIES_COLLECTION_ID, cfg),
     ]);
+
+    const investorItems = notArchived(investorItemsRaw as Array<typeof investorItemsRaw[0] & { isArchived?: boolean }>);
+    const documentItems = notArchived(documentItemsRaw as Array<typeof documentItemsRaw[0] & { isArchived?: boolean }>);
+    const accessGroupItems = notArchived(accessGroupItemsRaw as Array<typeof accessGroupItemsRaw[0] & { isArchived?: boolean }>);
+    const categoryItems = notArchived(categoryItemsRaw as Array<typeof categoryItemsRaw[0] & { isArchived?: boolean }>);
 
     const accessGroups = accessGroupItems
         .map((item) => {
