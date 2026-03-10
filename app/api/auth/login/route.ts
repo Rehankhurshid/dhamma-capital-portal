@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
                 investor_type: investor.investor_type,
                 is_active: investor.is_active,
                 is_admin: investor.is_admin,
-                ref_ids: [investor.id, investor.investor_id],
+                ref_ids: [investor.id, investor.investor_id, ...investor.access_group_ids],
             },
             cfg
         );

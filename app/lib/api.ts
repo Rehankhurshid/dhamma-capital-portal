@@ -98,6 +98,7 @@ export function extractInvestorDisplay(
         investor_type: normalizeInvestorType(getField(fd, ["investor_type", "investor-type"], ""), cfg) || "",
         is_active: isInvestorActive(fd, cfg),
         is_admin: parseBoolean(getField(fd, ["is_admin", "is-admin"], false), false),
+        access_group_ids: extractReferenceIds(getField(fd, ["access-group", "access_group"], null)),
     };
 }
 

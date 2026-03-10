@@ -237,6 +237,7 @@ export async function GET(req: NextRequest) {
             .map((item) => {
                 const fd = item.fieldData as Record<string, unknown>;
                 const refIds = extractReferenceIds(getField(fd, ["investor_ref", "investor-ref", "investor"], null));
+                const accessGroupIds = extractReferenceIds(getField(fd, ["access-group", "access_group"], null));
                 const scope = normalizeScope(getField(fd, ["investor_type_scope", "investor-type-scope"], "both"), cfg) || "both";
                 const isVisible = parseBoolean(getField(fd, ["is_visible", "is-visible"], true), true);
                 const showToAllMembers = parseBoolean(
@@ -292,6 +293,7 @@ export async function GET(req: NextRequest) {
                     published_date: documentDate,
                     created_on: item.createdOn,
                     investor_ref_ids: refIds,
+                    access_group_ids: accessGroupIds,
                     scope,
                     is_visible: isVisible,
                     show_to_all_members: showToAllMembers,
@@ -300,9 +302,13 @@ export async function GET(req: NextRequest) {
             })
             .filter((doc) => {
                 if (!doc.is_visible) return false;
-                const authorizedByRef = doc.show_to_all_members || doc.investor_ref_ids.some(
+                const authorizedByInvestor = doc.investor_ref_ids.some(
                     (refId) => refId === session.id || refId === session.investor_id
                 );
+                const authorizedByGroup = doc.access_group_ids.some(
+                    (refId) => session.ref_ids.includes(refId)
+                );
+                const authorizedByRef = doc.show_to_all_members || authorizedByInvestor || authorizedByGroup;
                 if (!authorizedByRef) return false;
                 return doc.scope === "both" || doc.scope === safeLower(session.investor_type);
             });
