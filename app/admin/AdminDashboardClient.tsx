@@ -163,6 +163,7 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
     const [bulkInvStatus, setBulkInvStatus] = useState("");
     const [bulkDocGroup, setBulkDocGroup] = useState("");
     const [bulkDocCategory, setBulkDocCategory] = useState("");
+    const [pendingArchive, setPendingArchive] = useState<{ type: string; id: string; label: string } | null>(null);
 
     function toggleSelection(set: Set<string>, setFn: (s: Set<string>) => void, id: string) {
         const next = new Set(set);
@@ -453,10 +454,15 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
                                         }}>Apply</Button>
                                     </div>
                                     <Button size="sm" variant="outline" className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50" disabled={isPending} onClick={() => {
-                                        if (window.confirm(`Archive ${selectedInvestors.size} investor(s)?`)) {
-                                            void runBulkActions([...selectedInvestors], id => ({ action: "archive-investor", investorId: id }), "Investors archived", () => setSelectedInvestors(new Set()));
+                                        if (pendingArchive?.type === 'bulk-investors') {
+                                            void runBulkActions([...selectedInvestors], id => ({ action: "archive-investor", investorId: id }), "Investors archived", () => { setSelectedInvestors(new Set()); setPendingArchive(null); });
+                                        } else {
+                                            setPendingArchive({ type: 'bulk-investors', id: '', label: `${selectedInvestors.size} investor(s)` });
                                         }
-                                    }}>Archive Selected</Button>
+                                    }}>{pendingArchive?.type === 'bulk-investors' ? 'Confirm Archive' : 'Archive Selected'}</Button>
+                                    {pendingArchive?.type === 'bulk-investors' && (
+                                        <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setPendingArchive(null)}>Cancel</Button>
+                                    )}
                                     <Button size="sm" variant="ghost" className="h-8 text-xs ml-auto" onClick={() => setSelectedInvestors(new Set())}>Clear</Button>
                                 </div>
                             )}
@@ -507,12 +513,14 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
                                                             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setInvestorForm({ id: inv.id, name: inv.name, slug: inv.slug, email: inv.email, password: "", investorType: inv.investorType.toLowerCase(), status: inv.isActive ? "active" : "inactive", isAdmin: inv.isAdmin, accessGroupId: inv.accessGroupId })}>
                                                                 Edit
                                                             </Button>
-                                                            <Button variant="ghost" size="sm" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => {
-                                                                if (window.confirm(`Archive investor "${inv.name}"?`)) {
-                                                                    void runAction({ action: "archive-investor", investorId: inv.id }, "Investor archived.", () => { if (investorForm.id === inv.id) setInvestorForm(emptyInvestor); });
+                                                            <Button variant="ghost" size="sm" className={`h-7 text-xs ${pendingArchive?.id === inv.id && pendingArchive?.type === 'investor' ? 'text-white bg-red-600 hover:bg-red-700' : 'text-red-600 hover:text-red-700 hover:bg-red-50'}`} onClick={() => {
+                                                                if (pendingArchive?.id === inv.id && pendingArchive?.type === 'investor') {
+                                                                    void runAction({ action: "archive-investor", investorId: inv.id }, "Investor archived.", () => { if (investorForm.id === inv.id) setInvestorForm(emptyInvestor); setPendingArchive(null); });
+                                                                } else {
+                                                                    setPendingArchive({ type: 'investor', id: inv.id, label: inv.name });
                                                                 }
                                                             }}>
-                                                                Archive
+                                                                {pendingArchive?.id === inv.id && pendingArchive?.type === 'investor' ? 'Confirm' : 'Archive'}
                                                             </Button>
                                                         </div>
                                                     </TableCell>
@@ -675,10 +683,15 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
                                         void runBulkActions([...selectedDocuments], id => ({ action: "update-document", documentId: id, showToAllMembers: true }), "Visibility set to all members", () => setSelectedDocuments(new Set()));
                                     }}>Show to All</Button>
                                     <Button size="sm" variant="outline" className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50" disabled={isPending} onClick={() => {
-                                        if (window.confirm(`Archive ${selectedDocuments.size} document(s)?`)) {
-                                            void runBulkActions([...selectedDocuments], id => ({ action: "archive-document", documentId: id }), "Documents archived", () => setSelectedDocuments(new Set()));
+                                        if (pendingArchive?.type === 'bulk-documents') {
+                                            void runBulkActions([...selectedDocuments], id => ({ action: "archive-document", documentId: id }), "Documents archived", () => { setSelectedDocuments(new Set()); setPendingArchive(null); });
+                                        } else {
+                                            setPendingArchive({ type: 'bulk-documents', id: '', label: `${selectedDocuments.size} document(s)` });
                                         }
-                                    }}>Archive Selected</Button>
+                                    }}>{pendingArchive?.type === 'bulk-documents' ? 'Confirm Archive' : 'Archive Selected'}</Button>
+                                    {pendingArchive?.type === 'bulk-documents' && (
+                                        <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setPendingArchive(null)}>Cancel</Button>
+                                    )}
                                     <Button size="sm" variant="ghost" className="h-8 text-xs ml-auto" onClick={() => setSelectedDocuments(new Set())}>Clear</Button>
                                 </div>
                             )}
@@ -735,12 +748,14 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
                                                             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setDocumentForm({ id: doc.id, title: doc.title, slug: doc.slug, fileUrl: doc.fileUrl, date: doc.date, categoryId: doc.categoryId, investorId: doc.investorId, accessGroupId: doc.accessGroupId, showToAllMembers: doc.showToAllMembers })}>
                                                                 Edit
                                                             </Button>
-                                                            <Button variant="ghost" size="sm" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => {
-                                                                if (window.confirm(`Archive document "${doc.title}"?`)) {
-                                                                    void runAction({ action: "archive-document", documentId: doc.id }, "Document archived.", () => { if (documentForm.id === doc.id) setDocumentForm(emptyDocument); });
+                                                            <Button variant="ghost" size="sm" className={`h-7 text-xs ${pendingArchive?.id === doc.id && pendingArchive?.type === 'document' ? 'text-white bg-red-600 hover:bg-red-700' : 'text-red-600 hover:text-red-700 hover:bg-red-50'}`} onClick={() => {
+                                                                if (pendingArchive?.id === doc.id && pendingArchive?.type === 'document') {
+                                                                    void runAction({ action: "archive-document", documentId: doc.id }, "Document archived.", () => { if (documentForm.id === doc.id) setDocumentForm(emptyDocument); setPendingArchive(null); });
+                                                                } else {
+                                                                    setPendingArchive({ type: 'document', id: doc.id, label: doc.title });
                                                                 }
                                                             }}>
-                                                                Archive
+                                                                {pendingArchive?.id === doc.id && pendingArchive?.type === 'document' ? 'Confirm' : 'Archive'}
                                                             </Button>
                                                         </div>
                                                     </TableCell>
@@ -824,11 +839,13 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
                                                         <TableCell className="text-right">
                                                             <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                 <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setGroupForm({ id: g.id, name: g.name, slug: g.slug })}>Edit</Button>
-                                                                <Button variant="ghost" size="sm" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => {
-                                                                    if (window.confirm(`Archive "${g.name}"?`)) {
-                                                                        void runAction({ action: "archive-access-group", accessGroupId: g.id }, "Access group archived.", () => { if (groupForm.id === g.id) setGroupForm(emptyNamed); });
+                                                                <Button variant="ghost" size="sm" className={`h-7 text-xs ${pendingArchive?.id === g.id && pendingArchive?.type === 'group' ? 'text-white bg-red-600 hover:bg-red-700' : 'text-red-600 hover:text-red-700 hover:bg-red-50'}`} onClick={() => {
+                                                                    if (pendingArchive?.id === g.id && pendingArchive?.type === 'group') {
+                                                                        void runAction({ action: "archive-access-group", accessGroupId: g.id }, "Access group archived.", () => { if (groupForm.id === g.id) setGroupForm(emptyNamed); setPendingArchive(null); });
+                                                                    } else {
+                                                                        setPendingArchive({ type: 'group', id: g.id, label: g.name });
                                                                     }
-                                                                }}>Archive</Button>
+                                                                }}>{pendingArchive?.id === g.id && pendingArchive?.type === 'group' ? 'Confirm' : 'Archive'}</Button>
                                                             </div>
                                                         </TableCell>
                                                     </TableRow>
@@ -898,11 +915,13 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
                                                         <TableCell className="text-right">
                                                             <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                 <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setCategoryForm({ id: c.id, name: c.name, slug: c.slug })}>Edit</Button>
-                                                                <Button variant="ghost" size="sm" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => {
-                                                                    if (window.confirm(`Archive "${c.name}"?`)) {
-                                                                        void runAction({ action: "archive-category", categoryId: c.id }, "Category archived.", () => { if (categoryForm.id === c.id) setCategoryForm(emptyNamed); });
+                                                                <Button variant="ghost" size="sm" className={`h-7 text-xs ${pendingArchive?.id === c.id && pendingArchive?.type === 'category' ? 'text-white bg-red-600 hover:bg-red-700' : 'text-red-600 hover:text-red-700 hover:bg-red-50'}`} onClick={() => {
+                                                                    if (pendingArchive?.id === c.id && pendingArchive?.type === 'category') {
+                                                                        void runAction({ action: "archive-category", categoryId: c.id }, "Category archived.", () => { if (categoryForm.id === c.id) setCategoryForm(emptyNamed); setPendingArchive(null); });
+                                                                    } else {
+                                                                        setPendingArchive({ type: 'category', id: c.id, label: c.name });
                                                                     }
-                                                                }}>Archive</Button>
+                                                                }}>{pendingArchive?.id === c.id && pendingArchive?.type === 'category' ? 'Confirm' : 'Archive'}</Button>
                                                             </div>
                                                         </TableCell>
                                                     </TableRow>
