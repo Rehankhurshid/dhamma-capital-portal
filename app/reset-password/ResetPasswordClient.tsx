@@ -9,6 +9,9 @@ export function ResetPasswordClient({ token }: { token: string }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [savedPassword, setSavedPassword] = useState("");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,7 +41,10 @@ export function ResetPasswordClient({ token }: { token: string }) {
         throw new Error(data.error || "Unable to reset password.");
       }
 
+      setSavedPassword(password);
       setMessage("Password updated. You can return to the login page and sign in.");
+      setShowSuccessModal(true);
+      setCopied(false);
       setPassword("");
       setConfirmPassword("");
     } catch (submitError) {
@@ -87,6 +93,35 @@ export function ResetPasswordClient({ token }: { token: string }) {
           </button>
         </form>
       </section>
+
+      {showSuccessModal ? (
+        <div style={styles.modalBackdrop}>
+          <div style={styles.modalCard}>
+            <h2 style={styles.modalTitle}>Password updated</h2>
+            <p style={styles.modalText}>Use this password to sign in again.</p>
+            <div style={styles.passwordBox}>{savedPassword || "Password updated successfully"}</div>
+            <div style={styles.modalActions}>
+              <button
+                type="button"
+                style={styles.secondaryButton}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(savedPassword);
+                    setCopied(true);
+                  } catch {
+                    setCopied(false);
+                  }
+                }}
+              >
+                {copied ? "Copied" : "Copy password"}
+              </button>
+              <a href="https://www.dhammacapital.in/login" style={styles.linkButton}>
+                Back to login
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -159,5 +194,73 @@ const styles: Record<string, CSSProperties> = {
     margin: 0,
     color: "#0f6b43",
     fontSize: "14px",
+  },
+  modalBackdrop: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(15, 23, 42, 0.42)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "24px",
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: "420px",
+    background: "#ffffff",
+    borderRadius: "18px",
+    padding: "24px",
+    boxShadow: "0 24px 60px rgba(15, 23, 42, 0.22)",
+    display: "grid",
+    gap: "14px",
+  },
+  modalTitle: {
+    margin: 0,
+    color: "#0b4a6f",
+    fontSize: "28px",
+    lineHeight: "1.1",
+  },
+  modalText: {
+    margin: 0,
+    color: "#4b6476",
+    fontSize: "15px",
+    lineHeight: "1.5",
+  },
+  passwordBox: {
+    border: "1px solid rgba(23, 54, 93, 0.16)",
+    borderRadius: "12px",
+    padding: "14px 16px",
+    background: "#f6f9fc",
+    color: "#17365d",
+    fontSize: "15px",
+    fontWeight: 600,
+    wordBreak: "break-word",
+  },
+  modalActions: {
+    display: "flex",
+    gap: "12px",
+    flexWrap: "wrap",
+  },
+  secondaryButton: {
+    border: "1px solid rgba(11, 74, 111, 0.18)",
+    borderRadius: "10px",
+    padding: "12px 14px",
+    fontSize: "15px",
+    fontWeight: 600,
+    background: "#ffffff",
+    color: "#0b4a6f",
+    cursor: "pointer",
+  },
+  linkButton: {
+    borderRadius: "10px",
+    padding: "12px 14px",
+    fontSize: "15px",
+    fontWeight: 600,
+    background: "#0b4a6f",
+    color: "#ffffff",
+    textDecoration: "none",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
 };
