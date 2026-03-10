@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 
@@ -467,7 +467,7 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
                                 </div>
                             )}
                             <CardContent className="p-0">
-                                <ScrollArea className="max-h-[520px]">
+                                <div className="max-h-[520px] overflow-auto">
                                     <Table>
                                         <TableHeader>
                                             <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
@@ -532,7 +532,7 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
                                             )}
                                         </TableBody>
                                     </Table>
-                                </ScrollArea>
+                                </div>
                             </CardContent>
                         </Card>
                     </TabsContent>
@@ -696,7 +696,7 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
                                 </div>
                             )}
                             <CardContent className="p-0">
-                                <ScrollArea className="max-h-[520px]">
+                                <div className="max-h-[520px] overflow-auto">
                                     <Table>
                                         <TableHeader>
                                             <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
@@ -767,7 +767,7 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
                                             )}
                                         </TableBody>
                                     </Table>
-                                </ScrollArea>
+                                </div>
                             </CardContent>
                         </Card>
                     </TabsContent>
@@ -817,7 +817,7 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
                                         </div>
                                     </form>
                                     <Separator />
-                                    <ScrollArea className="max-h-[320px]">
+                                    <div className="max-h-[320px] overflow-auto">
                                         <Table>
                                             <TableHeader>
                                                 <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
@@ -854,7 +854,7 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
                                                 )}
                                             </TableBody>
                                         </Table>
-                                    </ScrollArea>
+                                    </div>
                                 </CardContent>
                             </Card>
 
@@ -895,7 +895,7 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
                                         </div>
                                     </form>
                                     <Separator />
-                                    <ScrollArea className="max-h-[320px]">
+                                    <div className="max-h-[320px] overflow-auto">
                                         <Table>
                                             <TableHeader>
                                                 <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
@@ -930,7 +930,7 @@ export function AdminDashboardClient({ initialData }: { initialData: AdminOvervi
                                                 )}
                                             </TableBody>
                                         </Table>
-                                    </ScrollArea>
+                                    </div>
                                 </CardContent>
                             </Card>
                         </div>
