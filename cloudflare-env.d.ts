@@ -15,4 +15,7 @@ interface CloudflareEnv {
     SESSION_COOKIE_NAME: string;
     LOGIN_MAX_ATTEMPTS: string;
     LOGIN_WINDOW_MINUTES: string;
+    RESEND_API_KEY: string;
+    RESET_PASSWORD_FROM_EMAIL: string;
+    RESET_PASSWORD_BASE_URL: string;
 }

@@ -8,6 +8,8 @@
  * 3. Submit button must have `data-portal="submit"`
  * 4. Optional: form wrapper can have `data-portal="login-form"`
  * 5. Optional: error block can have `data-portal="error"`
+ * 6. Optional: forgot-password link/button can have `data-portal="forgot-password"`
+ * 7. Optional: status block can have `data-portal="forgot-password-status"`
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -23,8 +25,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const passwordInput = document.querySelector('[data-portal="password"]');
     const submitButton = document.querySelector('[data-portal="submit"]');
     const errorBlock = document.querySelector('[data-portal="error"]');
+    const forgotPasswordButton = document.querySelector('[data-portal="forgot-password"]');
+    const forgotPasswordStatus = document.querySelector('[data-portal="forgot-password-status"]');
     let originalButtonText = 'Login';
     let isSubmitting = false;
+    let isResetSubmitting = false;
 
     if (submitButton) {
         // If button is an input element, save its value, otherwise save textContent
@@ -39,6 +44,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Hide error block initially if it exists
     if (errorBlock) {
         errorBlock.style.display = 'none';
+    }
+    if (forgotPasswordStatus) {
+        forgotPasswordStatus.style.display = 'none';
     }
 
     async function handleLogin() {
@@ -136,6 +144,49 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    if (forgotPasswordButton) {
+        forgotPasswordButton.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (isResetSubmitting) return;
+
+            const email = emailInput.value.trim();
+            if (!email) {
+                showError('Enter your email address first.');
+                return;
+            }
+
+            isResetSubmitting = true;
+            setForgotPasswordState(true);
+            hideForgotPasswordStatus();
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Unable to start password reset.');
+                }
+
+                showForgotPasswordStatus(data.message || 'If an account exists for that email, a reset link has been sent.');
+            } catch (error) {
+                console.error('Forgot password error:', error);
+                showError(error.message || 'Unable to start password reset.');
+            } finally {
+                isResetSubmitting = false;
+                setForgotPasswordState(false);
+            }
+        });
+    }
+
     function setLoadingState(isLoading) {
         if (!submitButton) return;
         
@@ -168,6 +219,29 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             alert(message);
         }
+    }
+
+    function showForgotPasswordStatus(message) {
+        if (!forgotPasswordStatus) {
+            alert(message);
+            return;
+        }
+        forgotPasswordStatus.style.display = 'block';
+        const textElement = forgotPasswordStatus.querySelector('div, span, p') || forgotPasswordStatus;
+        textElement.textContent = message;
+    }
+
+    function hideForgotPasswordStatus() {
+        if (!forgotPasswordStatus) return;
+        forgotPasswordStatus.style.display = 'none';
+    }
+
+    function setForgotPasswordState(isLoading) {
+        if (!forgotPasswordButton) return;
+
+        forgotPasswordButton.style.opacity = isLoading ? '0.7' : '1';
+        forgotPasswordButton.style.pointerEvents = isLoading ? 'none' : 'auto';
+        forgotPasswordButton.setAttribute('aria-busy', isLoading ? 'true' : 'false');
     }
 
     function setStoredToken(token) {

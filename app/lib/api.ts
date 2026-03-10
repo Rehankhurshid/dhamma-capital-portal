@@ -240,6 +240,12 @@ export interface SessionPayload {
     ref_ids: string[];
 }
 
+export interface ResetPasswordTokenPayload {
+    purpose: "reset-password";
+    investorId: string;
+    email: string;
+}
+
 export async function buildSessionToken(
     payload: SessionPayload,
     cfg: ReturnType<typeof getConfig>
@@ -259,6 +265,31 @@ export async function verifySessionToken(
     const secret = new TextEncoder().encode(cfg.sessionSecret);
     const { payload } = await jwtVerify(token, secret);
     return payload as unknown as SessionPayload;
+}
+
+export async function buildResetPasswordToken(
+    payload: Omit<ResetPasswordTokenPayload, "purpose">,
+    cfg: ReturnType<typeof getConfig>
+): Promise<string> {
+    const secret = new TextEncoder().encode(cfg.sessionSecret);
+    return new SignJWT({ ...payload, purpose: "reset-password" })
+        .setProtectedHeader({ alg: "HS256" })
+        .setExpirationTime("30m")
+        .setIssuedAt()
+        .sign(secret);
+}
+
+export async function verifyResetPasswordToken(
+    token: string,
+    cfg: ReturnType<typeof getConfig>
+): Promise<ResetPasswordTokenPayload> {
+    const secret = new TextEncoder().encode(cfg.sessionSecret);
+    const { payload } = await jwtVerify(token, secret);
+    const resetPayload = payload as unknown as ResetPasswordTokenPayload;
+    if (resetPayload.purpose !== "reset-password" || !resetPayload.investorId || !resetPayload.email) {
+        throw new Error("Invalid reset token");
+    }
+    return resetPayload;
 }
 
 export function sessionCookieOptions(cfg: ReturnType<typeof getConfig>) {
