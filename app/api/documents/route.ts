@@ -235,6 +235,10 @@ export async function GET(req: NextRequest) {
                 const refIds = extractReferenceIds(getField(fd, ["investor_ref", "investor-ref", "investor"], null));
                 const scope = normalizeScope(getField(fd, ["investor_type_scope", "investor-type-scope"], "both"), cfg) || "both";
                 const isVisible = parseBoolean(getField(fd, ["is_visible", "is-visible"], true), true);
+                const showToAllMembers = parseBoolean(
+                    getField(fd, ["show-to-all-members", "show_to_all_members"], false),
+                    false
+                );
                 const title = sanitizeText(getField(fd, ["title", "name"], "Untitled Document"));
 
                 const categoryReferenceIds = extractReferenceIds(
@@ -286,12 +290,13 @@ export async function GET(req: NextRequest) {
                     investor_ref_ids: refIds,
                     scope,
                     is_visible: isVisible,
+                    show_to_all_members: showToAllMembers,
                     normalized_date: normalizedDate,
                 };
             })
             .filter((doc) => {
                 if (!doc.is_visible) return false;
-                const authorizedByRef = doc.investor_ref_ids.some(
+                const authorizedByRef = doc.show_to_all_members || doc.investor_ref_ids.some(
                     (refId) => refId === session.id || refId === session.investor_id
                 );
                 if (!authorizedByRef) return false;
