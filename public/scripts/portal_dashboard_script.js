@@ -340,17 +340,7 @@
       groupedContainer = existing;
       return groupedContainer;
     }
-
-    const anchor = gridContainer || listContainer;
-    if (!anchor || !anchor.parentNode) return null;
-
-    const container = document.createElement('div');
-    container.setAttribute('data-portal', 'document-grouped-grid');
-    container.setAttribute('data-layout-container', 'group');
-    container.className = 'portal-document-grouped-grid';
-    anchor.parentNode.insertBefore(container, anchor);
-    groupedContainer = container;
-    return groupedContainer;
+    return null;
   }
 
   function findExistingGroupedContainer() {
@@ -366,14 +356,43 @@
 
   function renderGroupedDocumentsIntoContainer(container, docs) {
     if (!container) return;
+    const templates = getGroupedTemplates(container);
+    if (!templates) return;
 
     container.innerHTML = '';
 
     const groupedDocs = groupDocumentsByCategory(docs);
     groupedDocs.forEach(function(group, groupIndex) {
-      const section = createGroupedSection(group, groupIndex);
+      const section = createGroupedSectionFromTemplate(templates, group, groupIndex);
       container.appendChild(section);
     });
+  }
+
+  function getGroupedTemplates(container) {
+    if (!container) return null;
+    if (container.__portalGroupTemplate && container.__portalGroupItemTemplate) {
+      return {
+        group: container.__portalGroupTemplate,
+        item: container.__portalGroupItemTemplate
+      };
+    }
+
+    const groupTemplate = container.querySelector('[data-portal="document-group"]');
+    if (!groupTemplate) return null;
+
+    const groupList = groupTemplate.querySelector('[data-portal="group-list"]');
+    if (!groupList) return null;
+
+    const itemTemplate = groupList.querySelector('[data-portal="document-item"]');
+    if (!itemTemplate) return null;
+
+    container.__portalGroupTemplate = groupTemplate.cloneNode(true);
+    container.__portalGroupItemTemplate = itemTemplate.cloneNode(true);
+
+    return {
+      group: container.__portalGroupTemplate,
+      item: container.__portalGroupItemTemplate
+    };
   }
 
   function groupDocumentsByCategory(docs) {
@@ -419,29 +438,11 @@
     style.textContent =
       '[data-portal=\"document-grid\"], [data-portal=\"document-vertical-list\"], [data-portal=\"document-grouped-grid\"]{transition:opacity .22s ease, transform .22s ease;will-change:opacity,transform;}' +
       '[data-portal=\"document-grid\"].portal-filtering, [data-portal=\"document-vertical-list\"].portal-filtering, [data-portal=\"document-grouped-grid\"].portal-filtering{opacity:.76;transform:translateY(2px);}' +
-      '[data-portal=\"document-grouped-grid\"]{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;margin-top:20px;}' +
       '[data-portal=\"document-group\"].portal-group-enter{opacity:0;animation:portalGroupEnter .4s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:var(--portal-group-enter-delay,0ms);}' +
       '[data-portal=\"document-item\"].portal-doc-enter{opacity:0;animation:portalDocEnter .28s ease forwards;animation-delay:var(--portal-enter-delay,0ms);}' +
-      '.portal-document-section{position:relative;padding:22px 22px 16px;border-radius:24px;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(247,250,252,.96));border:1px solid rgba(15,50,82,.07);box-shadow:0 18px 40px rgba(11,36,64,.06);overflow:hidden;}' +
-      '.portal-document-section::after{content:\"\";display:block;height:1px;margin-top:18px;background:linear-gradient(90deg,rgba(39,96,134,.18),rgba(39,96,134,.04));}' +
-      '.portal-document-section-header{display:flex;align-items:center;gap:14px;margin-bottom:18px;}' +
-      '.portal-document-section-icon{display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:12px;background:#edf4f8;color:#436b8c;flex:0 0 auto;}' +
-      '.portal-document-section-name{margin:0;font-size:18px;line-height:1.2;font-weight:700;color:#17365d;}' +
-      '.portal-document-section-list{display:grid;gap:12px;margin-top:16px;}' +
-      '.portal-grouped-document-item{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 16px;border-radius:14px;background:#dfe9f1;border:1px solid rgba(58,99,129,.08);transition:transform .2s ease, box-shadow .2s ease, background-color .2s ease;cursor:pointer;outline:none;}' +
-      '.portal-grouped-document-item:hover,.portal-grouped-document-item:focus-visible{transform:translateY(-2px);box-shadow:0 10px 22px rgba(12,40,67,.10);background:#e7eff5;}' +
-      '.portal-grouped-document-info{display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 auto;}' +
-      '.portal-grouped-document-file-icon{display:flex;align-items:center;justify-content:center;color:#537898;flex:0 0 auto;}' +
-      '.portal-grouped-document-copy{min-width:0;}' +
-      '.portal-grouped-document-name{margin:0;color:#17365d;font-size:15px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
-      '.portal-grouped-document-meta{margin:4px 0 0;color:#6d8aa3;font-size:12px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
-      '.portal-grouped-document-download{display:inline-flex;align-items:center;justify-content:center;width:44px;height:40px;border-radius:11px;border:1px solid rgba(36,90,127,.65);background:rgba(255,255,255,.76);color:#24597f;transition:transform .2s ease, background-color .2s ease, border-color .2s ease;flex:0 0 auto;cursor:pointer;}' +
-      '.portal-grouped-document-download:hover,.portal-grouped-document-download:focus-visible{transform:translateY(-1px);background:#fff;border-color:#24597f;outline:none;}' +
       '[data-portal=\"dashboard-filters\"][data-layout-active=\"group\"] [data-portal=\"report-filter-host\"]{display:none !important;}' +
       '@keyframes portalGroupEnter{from{opacity:0;transform:translateY(14px) scale(.99);}to{opacity:1;transform:translateY(0) scale(1);}}' +
       '@keyframes portalDocEnter{from{opacity:0;transform:translateY(8px) scale(.995);}to{opacity:1;transform:translateY(0) scale(1);}}' +
-      '@media (max-width:991px){[data-portal=\"document-grouped-grid\"]{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;}}' +
-      '@media (max-width:767px){[data-portal=\"document-grouped-grid\"]{grid-template-columns:1fr;gap:16px;}.portal-document-section{padding:18px 18px 14px;}.portal-grouped-document-item{padding:16px 14px;}}' +
       '@media (prefers-reduced-motion: reduce){' +
       '[data-portal=\"document-grid\"], [data-portal=\"document-vertical-list\"], [data-portal=\"document-grouped-grid\"]{transition:none !important;}' +
       '[data-portal=\"document-group\"].portal-group-enter{animation:none !important;opacity:1 !important;}' +
@@ -574,112 +575,32 @@
     });
   }
 
-  function createGroupedSection(group, groupIndex) {
-    const section = document.createElement('section');
-    section.className = 'portal-document-section';
-    section.setAttribute('data-portal', 'document-group');
+  function createGroupedSectionFromTemplate(templates, group, groupIndex) {
+    const section = templates.group.cloneNode(true);
     section.setAttribute('data-category-slug', group.slug);
     primeGroupEnterAnimation(section, groupIndex);
 
-    const header = document.createElement('div');
-    header.className = 'portal-document-section-header';
+    const title = section.querySelector('[data-portal="group-title"]');
+    if (title) {
+      title.textContent = group.name;
+    }
 
-    const iconWrap = document.createElement('div');
-    iconWrap.className = 'portal-document-section-icon';
-    iconWrap.innerHTML = getCategoryIconMarkup(group.slug);
-
-    const title = document.createElement('h3');
-    title.className = 'portal-document-section-name';
-    title.textContent = group.name;
-
-    header.appendChild(iconWrap);
-    header.appendChild(title);
-
-    const list = document.createElement('div');
-    list.className = 'portal-document-section-list';
+    const list = section.querySelector('[data-portal="group-list"]');
+    if (!list) return section;
+    list.innerHTML = '';
 
     group.docs.forEach(function(doc, docIndex) {
-      const item = createGroupedDocumentItem(doc, docIndex);
+      const item = createGroupedDocumentItemFromTemplate(templates.item, doc, docIndex);
       list.appendChild(item);
     });
 
-    section.appendChild(header);
-    section.appendChild(list);
     return section;
   }
 
-  function createGroupedDocumentItem(doc, index) {
-    const item = document.createElement('article');
-    item.className = 'portal-grouped-document-item';
-    item.setAttribute('data-portal', 'document-item');
-    item.setAttribute('role', 'button');
-    item.tabIndex = 0;
+  function createGroupedDocumentItemFromTemplate(template, doc, index) {
+    const item = template.cloneNode(true);
     primeCardEnterAnimation(item, index);
-
-    const meta = getDocumentLinks(doc);
-    const title = doc.title || 'Untitled';
-
-    const info = document.createElement('div');
-    info.className = 'portal-grouped-document-info';
-    info.innerHTML =
-      '<div class="portal-grouped-document-file-icon" aria-hidden="true">' + getFileIconMarkup() + '</div>' +
-      '<div class="portal-grouped-document-copy">' +
-      '<p class="portal-grouped-document-name"></p>' +
-      '<p class="portal-grouped-document-meta"></p>' +
-      '</div>';
-
-    const nameEl = info.querySelector('.portal-grouped-document-name');
-    if (nameEl) nameEl.textContent = title;
-
-    const metaEl = info.querySelector('.portal-grouped-document-meta');
-    if (metaEl) {
-      metaEl.textContent = [
-        String(doc.file_type || 'PDF').toUpperCase(),
-        doc.file_size_label || '',
-        formatDocumentDate(doc)
-      ].filter(Boolean).join(' • ');
-    }
-
-    const downloadButton = document.createElement('button');
-    downloadButton.type = 'button';
-    downloadButton.className = 'portal-grouped-document-download';
-    downloadButton.setAttribute('aria-label', 'Download ' + title);
-    downloadButton.innerHTML = getDownloadIconMarkup();
-    downloadButton.addEventListener('click', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (meta.downloadUrl === '#') return;
-      void logDocumentAccess(doc.id);
-      void downloadWithAuthToken(meta.downloadUrl, title)
-        .then(function(success) {
-          if (success) {
-            showPortalToast('Download started');
-          }
-        });
-    });
-
-    item.addEventListener('click', function(e) {
-      const clickedButton = e.target && typeof e.target.closest === 'function'
-        ? e.target.closest('.portal-grouped-document-download')
-        : null;
-      if (clickedButton || meta.downloadUrl === '#') return;
-      void logDocumentAccess(doc.id);
-      void downloadWithAuthToken(meta.downloadUrl, title)
-        .then(function(success) {
-          if (success) {
-            showPortalToast('Download started');
-          }
-        });
-    });
-
-    item.addEventListener('keydown', function(e) {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      e.preventDefault();
-      downloadButton.click();
-    });
-
-    item.appendChild(info);
-    item.appendChild(downloadButton);
+    applyDocumentDataToCard(item, doc);
     return item;
   }
 
@@ -694,36 +615,6 @@
         ? (API_URL + '/proxy/file?url=' + fileUrlParam + '&action=view&filename=' + titleParam)
         : '#'
     };
-  }
-
-  function formatDocumentDate(doc) {
-    const raw = doc && (doc.published_date || doc.created_on);
-    const d = new Date(raw);
-    if (!isNaN(d.getTime())) {
-      return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    }
-    return raw || '';
-  }
-
-  function getCategoryIconMarkup(slug) {
-    const normalized = normalizeReportFilter(slug);
-    const icons = {
-      'investment-notes': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-      'monthly-reports': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 2v4M16 2v4M3 10h18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
-      'quarterly-reports': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21.21 15.89A10 10 0 118 2.83M22 12A10 10 0 0012 2v10z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-      'yearly-reports': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M4 4.5A2.5 2.5 0 016.5 2H20v20H6.5A2.5 2.5 0 014 19.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 6h8M8 10h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
-      'letters-from-founder': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 6l-10 7L2 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-      'internal-investment-notes': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'
-    };
-    return icons[normalized] || '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  }
-
-  function getFileIconMarkup() {
-    return '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 2h8l4 4v12a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/><path d="M12 2v4h4" stroke="currentColor" stroke-width="1.2"/></svg>';
-  }
-
-  function getDownloadIconMarkup() {
-    return '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M3 12v3h12v-3M9 3v9M5 8l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
   }
 
   function updateCountBadge(count) {
