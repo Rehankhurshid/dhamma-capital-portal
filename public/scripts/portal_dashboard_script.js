@@ -6,6 +6,14 @@
   const LOGIN_PATH = portalConfig.loginPath || '/login';
   const AUTH_TOKEN_KEY = portalConfig.tokenStorageKey || 'dc_portal_token';
   const LAST_SEEN_KEY = portalConfig.lastSeenStorageKey || 'dc_portal_last_seen_at';
+  const CATEGORY_ICONS = {
+    'investment-notes': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>',
+    'monthly-reports': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>',
+    'quarterly-reports': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M21.21 15.89A10 10 0 118 2.83M22 12A10 10 0 0012 2v10z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>',
+    'yearly-reports': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M4 4.5A2.5 2.5 0 016.5 2H20v20H6.5A2.5 2.5 0 014 19.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><path d="M8 6h8M8 10h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>',
+    'letters-from-founder': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><path d="M22 6l-10 7L2 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>',
+    'internal-investment-notes': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>'
+  };
   const gridContainer = document.querySelector('[data-portal="document-grid"]');
   const listContainer = document.querySelector('[data-portal="document-vertical-list"]');
   let groupedContainer = document.querySelector('[data-portal="document-grouped-grid"]');
@@ -580,6 +588,11 @@
     section.setAttribute('data-category-slug', group.slug);
     primeGroupEnterAnimation(section, groupIndex);
 
+    const icon = section.querySelector('[data-portal="group-icon"]');
+    if (icon) {
+      icon.innerHTML = getCategoryIconMarkup(group.slug);
+    }
+
     const title = section.querySelector('[data-portal="group-title"]');
     if (title) {
       title.textContent = group.name;
@@ -615,6 +628,11 @@
         ? (API_URL + '/proxy/file?url=' + fileUrlParam + '&action=view&filename=' + titleParam)
         : '#'
     };
+  }
+
+  function getCategoryIconMarkup(slug) {
+    const normalized = normalizeReportFilter(slug);
+    return CATEGORY_ICONS[normalized] || '';
   }
 
   function updateCountBadge(count) {
