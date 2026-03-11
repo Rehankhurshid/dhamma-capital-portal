@@ -6,6 +6,7 @@
   const LOGIN_PATH = portalConfig.loginPath || '/login';
   const AUTH_TOKEN_KEY = portalConfig.tokenStorageKey || 'dc_portal_token';
   const LAST_SEEN_KEY = portalConfig.lastSeenStorageKey || 'dc_portal_last_seen_at';
+  const SEARCH_DEBOUNCE_MS = 140;
   const CATEGORY_ICONS = {
     'investment-notes': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>',
     'monthly-reports': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>',
@@ -31,6 +32,7 @@
   let customDateStart = '';
   let customDateEnd = '';
   let searchClearButton = null;
+  let searchDebounceTimer = 0;
   let sortSelect = null;
   let sortDropdown = null;
   let sortOptionLinks = [];
@@ -276,6 +278,11 @@
   }
   
   function applyFiltersAndRender() {
+    if (searchDebounceTimer) {
+      window.clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = 0;
+    }
+
     ensureDashboardAnimationStyles();
     setFilteringVisualState(true);
 
@@ -964,12 +971,14 @@
 
     searchInput.addEventListener('input', function(e) {
       currentSearchTerm = e.target.value || '';
-      applyFiltersAndRender();
+      updateSearchClearButtonState();
+      scheduleSearchRender();
     });
 
     searchInput.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') {
         e.preventDefault();
+        flushSearchRender();
       }
       if (e.key === 'Escape' && searchInput.value) {
         e.preventDefault();
@@ -984,10 +993,33 @@
         e.preventDefault();
         searchInput.value = '';
         currentSearchTerm = '';
+        if (searchDebounceTimer) {
+          window.clearTimeout(searchDebounceTimer);
+          searchDebounceTimer = 0;
+        }
         applyFiltersAndRender();
         searchInput.focus();
       });
     }
+  }
+
+  function scheduleSearchRender() {
+    if (searchDebounceTimer) {
+      window.clearTimeout(searchDebounceTimer);
+    }
+
+    searchDebounceTimer = window.setTimeout(function() {
+      searchDebounceTimer = 0;
+      applyFiltersAndRender();
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
+  function flushSearchRender() {
+    if (searchDebounceTimer) {
+      window.clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = 0;
+    }
+    applyFiltersAndRender();
   }
 
   function setupFilters() {
@@ -2186,7 +2218,8 @@
 
   function updateSearchClearButtonState() {
     if (!searchClearButton) return;
-    const hasValue = Boolean(currentSearchTerm && currentSearchTerm.trim());
+    const liveValue = searchInput ? String(searchInput.value || '') : String(currentSearchTerm || '');
+    const hasValue = Boolean(liveValue.trim());
     searchClearButton.style.display = hasValue ? '' : 'none';
   }
 
