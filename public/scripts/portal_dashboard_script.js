@@ -712,8 +712,9 @@
   function setActiveLayout(layout) {
     const nextLayout = layout === 'flex' || layout === 'grid' || layout === 'group' ? layout : 'group';
     const switchingToGroup = nextLayout === 'group' && activeLayout !== 'group';
+    const clearedReportFilters = switchingToGroup && currentReportFilters.length > 0;
 
-    if (switchingToGroup && currentReportFilters.length) {
+    if (clearedReportFilters) {
       currentReportFilters = [];
       syncReportFilterButtons();
     }
@@ -724,6 +725,12 @@
       btn.classList.toggle('is-active', isActive);
       btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
+
+    if (clearedReportFilters) {
+      applyFiltersAndRender();
+      return;
+    }
+
     updateLayoutVisibility();
     updateFilterSummary(getCustomDateRangeState());
     updateAppliedStateIndicators(getCustomDateRangeState(), currentVisibleCount);
