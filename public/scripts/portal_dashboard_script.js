@@ -524,6 +524,7 @@
     const links = getDocumentLinks(doc);
     const downloadUrl = links.downloadUrl;
     const viewUrl = links.viewUrl;
+    const hasToken = Boolean(getStoredToken());
 
     const newMarkers = card.querySelectorAll('[data-portal="document-item-new-marker"]');
     const showNew = isDocumentNew(doc);
@@ -534,7 +535,7 @@
     const innerLink = card.tagName === 'A' ? null : card.querySelector('[data-portal="doc-link"]');
 
     if (card.tagName === 'A') {
-      card.href = downloadUrl;
+      card.href = viewUrl;
       card.removeAttribute('target');
     } else if (innerLink && innerLink.tagName === 'A') {
       innerLink.href = downloadUrl;
@@ -572,6 +573,7 @@
         e.preventDefault();
         e.stopPropagation();
         if (viewUrl === '#') return;
+        void logDocumentAccess(doc.id);
         void openDocumentViewer(viewUrl, doc.title || 'Document');
       });
     }
@@ -585,25 +587,26 @@
       }
 
       const isCardAnchor = card.tagName === 'A';
-      const clickedLink = e.target && typeof e.target.closest === 'function' ? e.target.closest('a, [data-portal="doc-link"]') : null;
-      const isLinkClick = isCardAnchor || Boolean(clickedLink);
-      const hasToken = Boolean(getStoredToken());
+      const clickedLink = e.target && typeof e.target.closest === 'function'
+        ? e.target.closest('[data-portal="doc-link"], a')
+        : null;
+      const clickedDownloadTrigger = clickedLink && (
+        clickedLink.getAttribute('data-portal') === 'doc-link' ||
+        (clickedLink !== card && clickedLink.tagName === 'A')
+      );
 
-      if (isLinkClick && hasToken && downloadUrl !== '#') {
-        e.preventDefault();
-        void logDocumentAccess(doc.id);
-        void downloadWithAuthToken(downloadUrl, doc.title || 'Document')
-          .then(function(success) {
-            if (success) {
-              showPortalToast('Download started');
-            }
-          });
+      if (clickedDownloadTrigger) {
         return;
       }
 
-      if (isLinkClick) {
-        void logDocumentAccess(doc.id);
+      if (viewUrl === '#') return;
+
+      if (isCardAnchor && hasToken) {
+        e.preventDefault();
       }
+
+      void logDocumentAccess(doc.id);
+      void openDocumentViewer(viewUrl, doc.title || 'Document');
     });
   }
 
@@ -707,7 +710,15 @@
   }
 
   function setActiveLayout(layout) {
-    activeLayout = layout === 'flex' || layout === 'grid' || layout === 'group' ? layout : 'group';
+    const nextLayout = layout === 'flex' || layout === 'grid' || layout === 'group' ? layout : 'group';
+    const switchingToGroup = nextLayout === 'group' && activeLayout !== 'group';
+
+    if (switchingToGroup && currentReportFilters.length) {
+      currentReportFilters = [];
+      syncReportFilterButtons();
+    }
+
+    activeLayout = nextLayout;
     layoutButtons.forEach(function(btn) {
       const isActive = btn.getAttribute('data-layout') === activeLayout;
       btn.classList.toggle('is-active', isActive);
