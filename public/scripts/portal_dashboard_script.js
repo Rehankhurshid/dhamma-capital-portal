@@ -8,16 +8,17 @@
   const LAST_SEEN_KEY = portalConfig.lastSeenStorageKey || 'dc_portal_last_seen_at';
   const gridContainer = document.querySelector('[data-portal="document-grid"]');
   const listContainer = document.querySelector('[data-portal="document-vertical-list"]');
+  let groupedContainer = document.querySelector('[data-portal="document-grouped-grid"]');
   const searchInput = document.querySelector('[data-portal="search-input"]');
   const countBadge = document.querySelector('[data-portal="total-docs"]');
   const emptyStates = document.querySelectorAll('[data-portal="empty-state"]');
   const loadingStates = document.querySelectorAll('[data-portal="loading-state"]');
-  const layoutButtons = document.querySelectorAll('[data-layout="grid"], [data-layout="flex"]');
+  const layoutButtons = document.querySelectorAll('[data-layout="group"], [data-layout="grid"], [data-layout="flex"]');
   let allDocuments = [];
   let currentSearchTerm = '';
   let currentVisibleCount = 0;
   let currentSortOrder = 'newest';
-  let currentReportFilter = 'all';
+  let currentReportFilters = [];
   let availableCategories = [];
   let customDateStart = '';
   let customDateEnd = '';
@@ -40,7 +41,7 @@
   let mobileDateEndPicker = null;
   let mobilePendingDateStart = '';
   let filtersResetButton = null;
-  let activeLayout = 'grid';
+  let activeLayout = 'group';
   let loadingStateHandled = false;
   let dashboardMotionEnabled = true;
   let lastSeenAt = getLastSeenAt();
@@ -244,10 +245,23 @@
   }
 
   function syncCurrentReportFilter() {
-    if (currentReportFilter === 'all' || currentReportFilter === 'custom') return;
-    if (!getCategoryBySlug(currentReportFilter)) {
-      currentReportFilter = 'all';
+    currentReportFilters = currentReportFilters.filter(function(slug, index, list) {
+      if (!slug || slug === 'all' || slug === 'custom') return false;
+      if (list.indexOf(slug) !== index) return false;
+      return Boolean(getCategoryBySlug(slug));
+    });
+  }
+
+  function hasActiveReportFilters() {
+    return activeLayout !== 'group' && currentReportFilters.length > 0;
+  }
+
+  function isReportFilterActive(value) {
+    const normalized = normalizeReportFilter(value);
+    if (normalized === 'all') {
+      return currentReportFilters.length === 0;
     }
+    return currentReportFilters.indexOf(normalized) >= 0;
   }
   
   function applyFiltersAndRender() {
@@ -292,6 +306,8 @@
   }
 
   function renderDocuments(docs) {
+    groupedContainer = getGroupedContainer();
+    renderGroupedDocumentsIntoContainer(groupedContainer, docs);
     renderDocumentsIntoContainer(gridContainer, docs);
     renderDocumentsIntoContainer(listContainer, docs);
     updateCountBadge(docs.length);
@@ -314,6 +330,85 @@
     });
   }
 
+  function getGroupedContainer() {
+    if (groupedContainer && groupedContainer.isConnected) return groupedContainer;
+
+    const existing = findExistingGroupedContainer();
+    if (existing) {
+      existing.setAttribute('data-portal', 'document-grouped-grid');
+      existing.setAttribute('data-layout-container', 'group');
+      groupedContainer = existing;
+      return groupedContainer;
+    }
+
+    const anchor = gridContainer || listContainer;
+    if (!anchor || !anchor.parentNode) return null;
+
+    const container = document.createElement('div');
+    container.setAttribute('data-portal', 'document-grouped-grid');
+    container.setAttribute('data-layout-container', 'group');
+    container.className = 'portal-document-grouped-grid';
+    anchor.parentNode.insertBefore(container, anchor);
+    groupedContainer = container;
+    return groupedContainer;
+  }
+
+  function findExistingGroupedContainer() {
+    const explicit = document.querySelector('[data-portal="document-grouped-grid"], [data-layout-container="group"]');
+    if (explicit) return explicit;
+
+    const manualCandidates = Array.prototype.slice.call(document.querySelectorAll('.documents-grid'));
+    return manualCandidates.find(function(node) {
+      if (!node || node === gridContainer || node === listContainer) return false;
+      return Boolean(node.querySelector('.document-section'));
+    }) || null;
+  }
+
+  function renderGroupedDocumentsIntoContainer(container, docs) {
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const groupedDocs = groupDocumentsByCategory(docs);
+    groupedDocs.forEach(function(group, groupIndex) {
+      const section = createGroupedSection(group, groupIndex);
+      container.appendChild(section);
+    });
+  }
+
+  function groupDocumentsByCategory(docs) {
+    const bySlug = new Map();
+    const ordered = [];
+
+    availableCategories.forEach(function(category) {
+      if (!category || !category.slug) return;
+      bySlug.set(category.slug, {
+        slug: category.slug,
+        name: category.name,
+        docs: []
+      });
+      ordered.push(category.slug);
+    });
+
+    docs.forEach(function(doc) {
+      const slug = extractCategoryFilterSlug(doc) || 'other';
+      const name = String(doc.category || 'Other').trim() || 'Other';
+      if (!bySlug.has(slug)) {
+        bySlug.set(slug, { slug: slug, name: name, docs: [] });
+        ordered.push(slug);
+      }
+      bySlug.get(slug).docs.push(doc);
+    });
+
+    return ordered
+      .map(function(slug) {
+        return bySlug.get(slug);
+      })
+      .filter(function(group) {
+        return group && group.docs.length > 0;
+      });
+  }
+
   function ensureDashboardAnimationStyles() {
     if (document.getElementById('portal-dashboard-motion-styles')) return;
 
@@ -322,22 +417,55 @@
     const style = document.createElement('style');
     style.id = 'portal-dashboard-motion-styles';
     style.textContent =
-      '[data-portal=\"document-grid\"], [data-portal=\"document-vertical-list\"]{transition:opacity .22s ease, transform .22s ease;will-change:opacity,transform;}' +
-      '[data-portal=\"document-grid\"].portal-filtering, [data-portal=\"document-vertical-list\"].portal-filtering{opacity:.76;transform:translateY(2px);}' +
+      '[data-portal=\"document-grid\"], [data-portal=\"document-vertical-list\"], [data-portal=\"document-grouped-grid\"]{transition:opacity .22s ease, transform .22s ease;will-change:opacity,transform;}' +
+      '[data-portal=\"document-grid\"].portal-filtering, [data-portal=\"document-vertical-list\"].portal-filtering, [data-portal=\"document-grouped-grid\"].portal-filtering{opacity:.76;transform:translateY(2px);}' +
+      '[data-portal=\"document-grouped-grid\"]{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;margin-top:20px;}' +
+      '[data-portal=\"document-group\"].portal-group-enter{opacity:0;animation:portalGroupEnter .4s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:var(--portal-group-enter-delay,0ms);}' +
       '[data-portal=\"document-item\"].portal-doc-enter{opacity:0;animation:portalDocEnter .28s ease forwards;animation-delay:var(--portal-enter-delay,0ms);}' +
+      '.portal-document-section{position:relative;padding:22px 22px 16px;border-radius:24px;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(247,250,252,.96));border:1px solid rgba(15,50,82,.07);box-shadow:0 18px 40px rgba(11,36,64,.06);overflow:hidden;}' +
+      '.portal-document-section::after{content:\"\";display:block;height:1px;margin-top:18px;background:linear-gradient(90deg,rgba(39,96,134,.18),rgba(39,96,134,.04));}' +
+      '.portal-document-section-header{display:flex;align-items:center;gap:14px;margin-bottom:18px;}' +
+      '.portal-document-section-icon{display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:12px;background:#edf4f8;color:#436b8c;flex:0 0 auto;}' +
+      '.portal-document-section-name{margin:0;font-size:18px;line-height:1.2;font-weight:700;color:#17365d;}' +
+      '.portal-document-section-list{display:grid;gap:12px;margin-top:16px;}' +
+      '.portal-grouped-document-item{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 16px;border-radius:14px;background:#dfe9f1;border:1px solid rgba(58,99,129,.08);transition:transform .2s ease, box-shadow .2s ease, background-color .2s ease;cursor:pointer;outline:none;}' +
+      '.portal-grouped-document-item:hover,.portal-grouped-document-item:focus-visible{transform:translateY(-2px);box-shadow:0 10px 22px rgba(12,40,67,.10);background:#e7eff5;}' +
+      '.portal-grouped-document-info{display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 auto;}' +
+      '.portal-grouped-document-file-icon{display:flex;align-items:center;justify-content:center;color:#537898;flex:0 0 auto;}' +
+      '.portal-grouped-document-copy{min-width:0;}' +
+      '.portal-grouped-document-name{margin:0;color:#17365d;font-size:15px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+      '.portal-grouped-document-meta{margin:4px 0 0;color:#6d8aa3;font-size:12px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+      '.portal-grouped-document-download{display:inline-flex;align-items:center;justify-content:center;width:44px;height:40px;border-radius:11px;border:1px solid rgba(36,90,127,.65);background:rgba(255,255,255,.76);color:#24597f;transition:transform .2s ease, background-color .2s ease, border-color .2s ease;flex:0 0 auto;cursor:pointer;}' +
+      '.portal-grouped-document-download:hover,.portal-grouped-document-download:focus-visible{transform:translateY(-1px);background:#fff;border-color:#24597f;outline:none;}' +
+      '[data-portal=\"dashboard-filters\"][data-layout-active=\"group\"] [data-portal=\"report-filter-host\"]{display:none !important;}' +
+      '@keyframes portalGroupEnter{from{opacity:0;transform:translateY(14px) scale(.99);}to{opacity:1;transform:translateY(0) scale(1);}}' +
       '@keyframes portalDocEnter{from{opacity:0;transform:translateY(8px) scale(.995);}to{opacity:1;transform:translateY(0) scale(1);}}' +
+      '@media (max-width:991px){[data-portal=\"document-grouped-grid\"]{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;}}' +
+      '@media (max-width:767px){[data-portal=\"document-grouped-grid\"]{grid-template-columns:1fr;gap:16px;}.portal-document-section{padding:18px 18px 14px;}.portal-grouped-document-item{padding:16px 14px;}}' +
       '@media (prefers-reduced-motion: reduce){' +
-      '[data-portal=\"document-grid\"], [data-portal=\"document-vertical-list\"]{transition:none !important;}' +
+      '[data-portal=\"document-grid\"], [data-portal=\"document-vertical-list\"], [data-portal=\"document-grouped-grid\"]{transition:none !important;}' +
+      '[data-portal=\"document-group\"].portal-group-enter{animation:none !important;opacity:1 !important;}' +
       '[data-portal=\"document-item\"].portal-doc-enter{animation:none !important;opacity:1 !important;}' +
       '}';
     document.head.appendChild(style);
   }
 
   function setFilteringVisualState(active) {
-    [gridContainer, listContainer].forEach(function(container) {
+    [groupedContainer, gridContainer, listContainer].forEach(function(container) {
       if (!container || !dashboardMotionEnabled) return;
       container.classList.toggle('portal-filtering', Boolean(active));
     });
+  }
+
+  function primeGroupEnterAnimation(section, index) {
+    if (!section || !dashboardMotionEnabled) return;
+    const delay = Math.min(index * 50, 240);
+    section.style.setProperty('--portal-group-enter-delay', delay + 'ms');
+    section.classList.add('portal-group-enter');
+    section.addEventListener('animationend', function() {
+      section.classList.remove('portal-group-enter');
+      section.style.removeProperty('--portal-group-enter-delay');
+    }, { once: true });
   }
 
   function primeCardEnterAnimation(card, index) {
@@ -384,14 +512,9 @@
       }
     }
 
-    const fileUrlParam = encodeURIComponent(doc.file_url || '');
-    const titleParam = encodeURIComponent(doc.title || 'Document');
-    const downloadUrl = fileUrlParam
-      ? (API_URL + '/proxy/file?url=' + fileUrlParam + '&action=download&filename=' + titleParam)
-      : '#';
-    const viewUrl = fileUrlParam
-      ? (API_URL + '/proxy/file?url=' + fileUrlParam + '&action=view&filename=' + titleParam)
-      : '#';
+    const links = getDocumentLinks(doc);
+    const downloadUrl = links.downloadUrl;
+    const viewUrl = links.viewUrl;
 
     const newMarkers = card.querySelectorAll('[data-portal="document-item-new-marker"]');
     const showNew = isDocumentNew(doc);
@@ -451,6 +574,158 @@
     });
   }
 
+  function createGroupedSection(group, groupIndex) {
+    const section = document.createElement('section');
+    section.className = 'portal-document-section';
+    section.setAttribute('data-portal', 'document-group');
+    section.setAttribute('data-category-slug', group.slug);
+    primeGroupEnterAnimation(section, groupIndex);
+
+    const header = document.createElement('div');
+    header.className = 'portal-document-section-header';
+
+    const iconWrap = document.createElement('div');
+    iconWrap.className = 'portal-document-section-icon';
+    iconWrap.innerHTML = getCategoryIconMarkup(group.slug);
+
+    const title = document.createElement('h3');
+    title.className = 'portal-document-section-name';
+    title.textContent = group.name;
+
+    header.appendChild(iconWrap);
+    header.appendChild(title);
+
+    const list = document.createElement('div');
+    list.className = 'portal-document-section-list';
+
+    group.docs.forEach(function(doc, docIndex) {
+      const item = createGroupedDocumentItem(doc, docIndex);
+      list.appendChild(item);
+    });
+
+    section.appendChild(header);
+    section.appendChild(list);
+    return section;
+  }
+
+  function createGroupedDocumentItem(doc, index) {
+    const item = document.createElement('article');
+    item.className = 'portal-grouped-document-item';
+    item.setAttribute('data-portal', 'document-item');
+    item.setAttribute('role', 'button');
+    item.tabIndex = 0;
+    primeCardEnterAnimation(item, index);
+
+    const meta = getDocumentLinks(doc);
+    const title = doc.title || 'Untitled';
+
+    const info = document.createElement('div');
+    info.className = 'portal-grouped-document-info';
+    info.innerHTML =
+      '<div class="portal-grouped-document-file-icon" aria-hidden="true">' + getFileIconMarkup() + '</div>' +
+      '<div class="portal-grouped-document-copy">' +
+      '<p class="portal-grouped-document-name"></p>' +
+      '<p class="portal-grouped-document-meta"></p>' +
+      '</div>';
+
+    const nameEl = info.querySelector('.portal-grouped-document-name');
+    if (nameEl) nameEl.textContent = title;
+
+    const metaEl = info.querySelector('.portal-grouped-document-meta');
+    if (metaEl) {
+      metaEl.textContent = [
+        String(doc.file_type || 'PDF').toUpperCase(),
+        doc.file_size_label || '',
+        formatDocumentDate(doc)
+      ].filter(Boolean).join(' • ');
+    }
+
+    const downloadButton = document.createElement('button');
+    downloadButton.type = 'button';
+    downloadButton.className = 'portal-grouped-document-download';
+    downloadButton.setAttribute('aria-label', 'Download ' + title);
+    downloadButton.innerHTML = getDownloadIconMarkup();
+    downloadButton.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (meta.downloadUrl === '#') return;
+      void logDocumentAccess(doc.id);
+      void downloadWithAuthToken(meta.downloadUrl, title)
+        .then(function(success) {
+          if (success) {
+            showPortalToast('Download started');
+          }
+        });
+    });
+
+    item.addEventListener('click', function(e) {
+      const clickedButton = e.target && typeof e.target.closest === 'function'
+        ? e.target.closest('.portal-grouped-document-download')
+        : null;
+      if (clickedButton || meta.downloadUrl === '#') return;
+      void logDocumentAccess(doc.id);
+      void downloadWithAuthToken(meta.downloadUrl, title)
+        .then(function(success) {
+          if (success) {
+            showPortalToast('Download started');
+          }
+        });
+    });
+
+    item.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      downloadButton.click();
+    });
+
+    item.appendChild(info);
+    item.appendChild(downloadButton);
+    return item;
+  }
+
+  function getDocumentLinks(doc) {
+    const fileUrlParam = encodeURIComponent(doc.file_url || '');
+    const titleParam = encodeURIComponent(doc.title || 'Document');
+    return {
+      downloadUrl: fileUrlParam
+        ? (API_URL + '/proxy/file?url=' + fileUrlParam + '&action=download&filename=' + titleParam)
+        : '#',
+      viewUrl: fileUrlParam
+        ? (API_URL + '/proxy/file?url=' + fileUrlParam + '&action=view&filename=' + titleParam)
+        : '#'
+    };
+  }
+
+  function formatDocumentDate(doc) {
+    const raw = doc && (doc.published_date || doc.created_on);
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    }
+    return raw || '';
+  }
+
+  function getCategoryIconMarkup(slug) {
+    const normalized = normalizeReportFilter(slug);
+    const icons = {
+      'investment-notes': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'monthly-reports': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 2v4M16 2v4M3 10h18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+      'quarterly-reports': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21.21 15.89A10 10 0 118 2.83M22 12A10 10 0 0012 2v10z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'yearly-reports': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M4 4.5A2.5 2.5 0 016.5 2H20v20H6.5A2.5 2.5 0 014 19.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 6h8M8 10h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+      'letters-from-founder': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 6l-10 7L2 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'internal-investment-notes': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'
+    };
+    return icons[normalized] || '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+
+  function getFileIconMarkup() {
+    return '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 2h8l4 4v12a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/><path d="M12 2v4h4" stroke="currentColor" stroke-width="1.2"/></svg>';
+  }
+
+  function getDownloadIconMarkup() {
+    return '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M3 12v3h12v-3M9 3v9M5 8l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+  }
+
   function updateCountBadge(count) {
     if (countBadge) {
       countBadge.textContent = count + ' documents';
@@ -493,31 +768,49 @@
     const activeBtn = document.querySelector('[data-layout].is-active');
     if (activeBtn) {
       const preferred = activeBtn.getAttribute('data-layout');
-      if (preferred === 'flex' || preferred === 'grid') return preferred;
+      if (preferred === 'group' || preferred === 'flex' || preferred === 'grid') return preferred;
     }
-    return 'grid';
+    return 'group';
   }
 
   function setActiveLayout(layout) {
-    activeLayout = layout === 'flex' ? 'flex' : 'grid';
+    activeLayout = layout === 'flex' || layout === 'grid' || layout === 'group' ? layout : 'group';
     layoutButtons.forEach(function(btn) {
       const isActive = btn.getAttribute('data-layout') === activeLayout;
       btn.classList.toggle('is-active', isActive);
       btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
     updateLayoutVisibility();
+    updateFilterSummary(getCustomDateRangeState());
+    updateAppliedStateIndicators(getCustomDateRangeState(), currentVisibleCount);
   }
 
   function updateLayoutVisibility() {
     const hasDocs = currentVisibleCount > 0;
-    const useGrid = activeLayout === 'grid' || !listContainer;
+    const useGroup = activeLayout === 'group' || (!gridContainer && !listContainer);
+    const useGrid = activeLayout === 'grid';
     const useList = activeLayout === 'flex' && !!listContainer;
 
+    if (groupedContainer) {
+      groupedContainer.style.display = hasDocs && useGroup ? '' : 'none';
+    }
     if (gridContainer) {
       gridContainer.style.display = hasDocs && useGrid ? '' : 'none';
     }
     if (listContainer) {
       listContainer.style.display = hasDocs && useList ? '' : 'none';
+    }
+    updateReportFilterVisibility();
+  }
+
+  function updateReportFilterVisibility() {
+    const host = getReportFilterHost();
+    if (host) {
+      host.style.display = activeLayout === 'group' ? 'none' : '';
+    }
+    const filtersContainer = document.querySelector('[data-portal="dashboard-filters"]');
+    if (filtersContainer) {
+      filtersContainer.setAttribute('data-layout-active', activeLayout);
     }
   }
 
@@ -946,7 +1239,7 @@
       control.setAttribute('data-filter-value', normalizedValue);
 
       if (!control.hasAttribute('aria-pressed')) {
-        const isActive = control.classList.contains('is-active') || normalizedValue === 'all';
+        const isActive = control.classList.contains('is-active') || (normalizedValue === 'all' && !currentReportFilters.length);
         control.setAttribute('aria-pressed', isActive ? 'true' : 'false');
       }
 
@@ -1027,10 +1320,17 @@
     reportFilterButtons = getReportFilterButtons();
     if (!reportFilterButtons.length) return;
 
-    const activeButton = reportFilterButtons.find(function(btn) {
+    const activeButtons = reportFilterButtons.filter(function(btn) {
       return btn.classList.contains('is-active');
+    }).map(function(btn) {
+      return normalizeReportFilter(btn.getAttribute('data-filter-value'));
+    }).filter(function(value) {
+      return value !== 'all' && value !== 'custom';
     });
-    currentReportFilter = normalizeReportFilter(activeButton ? activeButton.getAttribute('data-filter-value') : currentReportFilter);
+
+    if (activeButtons.length) {
+      currentReportFilters = activeButtons.slice();
+    }
     syncCurrentReportFilter();
 
     reportFilterButtons.forEach(function(btn) {
@@ -1099,7 +1399,7 @@
     }) || allTemplate;
 
     host.innerHTML = '';
-    host.appendChild(cloneFilterTemplate(allTemplate, 'All', 'all', currentReportFilter === 'all'));
+    host.appendChild(cloneFilterTemplate(allTemplate, 'All', 'all', currentReportFilters.length === 0));
 
     availableCategories.forEach(function(category) {
       host.appendChild(
@@ -1107,7 +1407,7 @@
           categoryTemplate,
           category.name,
           category.slug,
-          currentReportFilter === category.slug
+          isReportFilterActive(category.slug)
         )
       );
     });
@@ -1117,7 +1417,17 @@
   }
 
   function setReportFilter(value) {
-    currentReportFilter = normalizeReportFilter(value);
+    const normalized = normalizeReportFilter(value);
+    if (normalized === 'all') {
+      currentReportFilters = [];
+    } else if (normalized !== 'custom') {
+      const existingIndex = currentReportFilters.indexOf(normalized);
+      if (existingIndex >= 0) {
+        currentReportFilters.splice(existingIndex, 1);
+      } else {
+        currentReportFilters.push(normalized);
+      }
+    }
     syncReportFilterButtons();
     updateCustomDateControlsVisibility();
     applyFiltersAndRender();
@@ -1126,7 +1436,11 @@
   function syncReportFilterButtons() {
     reportFilterButtons.forEach(function(btn) {
       const value = normalizeReportFilter(btn.getAttribute('data-filter-value'));
-      const isActive = value === currentReportFilter;
+      const isActive = value === 'all'
+        ? currentReportFilters.length === 0
+        : value === 'custom'
+          ? false
+          : currentReportFilters.indexOf(value) >= 0;
       btn.classList.toggle('is-active', isActive);
       btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
@@ -1550,9 +1864,8 @@
   }
 
   function matchesReportFilter(doc) {
-    if (currentReportFilter === 'all') return true;
-
-    return extractCategoryFilterSlug(doc) === currentReportFilter;
+    if (!hasActiveReportFilters()) return true;
+    return currentReportFilters.indexOf(extractCategoryFilterSlug(doc)) >= 0;
   }
 
   function extractCategoryFilterText(doc) {
@@ -1588,12 +1901,17 @@
     const summary = document.querySelector('[data-portal="filter-summary"]');
     if (!summary) return;
 
-    const activeCategory = getCategoryBySlug(currentReportFilter);
-    const reportLabel = currentReportFilter === 'all'
-      ? 'All reports'
-      : activeCategory
-        ? activeCategory.name
-        : 'Custom date range';
+    const activeCategories = currentReportFilters
+      .map(getCategoryBySlug)
+      .filter(Boolean)
+      .map(function(category) {
+        return category.name;
+      });
+    const reportLabel = activeLayout === 'group'
+      ? 'Grouped by category'
+      : activeCategories.length
+        ? 'Categories: ' + activeCategories.join(', ')
+        : 'All reports';
 
     const sortLabel = currentSortOrder === 'oldest'
       ? 'Earliest first'
@@ -1602,24 +1920,19 @@
         : currentSortOrder === 'titledesc'
           ? 'Name Z-A'
           : 'Latest first';
-    const rangeLabel = currentReportFilter !== 'custom'
-      ? (range.hasActiveRange
-        ? ' | Range: ' +
+    const rangeLabel = range.hasActiveRange
+      ? ' | Range: ' +
         (range.startTs ? new Date(range.startTs).toLocaleDateString('en-US') : 'Any') +
         ' to ' +
         (range.endTs ? new Date(range.endTs).toLocaleDateString('en-US') : 'Any')
-        : '')
-      : ' | Range: ' +
-        (range.startTs ? new Date(range.startTs).toLocaleDateString('en-US') : 'Any') +
-        ' to ' +
-        (range.endTs ? new Date(range.endTs).toLocaleDateString('en-US') : 'Any');
+      : '';
 
     summary.textContent = reportLabel + ' | ' + sortLabel + rangeLabel;
   }
 
   function hasAppliedFiltersOrSort(range) {
     const hasSearch = Boolean(String(currentSearchTerm || '').trim());
-    const hasReportFilter = currentReportFilter !== 'all';
+    const hasReportFilter = hasActiveReportFilters();
     const hasSort = currentSortOrder !== 'newest';
     const hasRange = Boolean(range && range.hasActiveRange);
     return hasSearch || hasReportFilter || hasSort || hasRange;
@@ -1659,7 +1972,7 @@
 
   function resetFilters() {
     currentSortOrder = 'newest';
-    currentReportFilter = 'all';
+    currentReportFilters = [];
     customDateStart = '';
     customDateEnd = '';
 
