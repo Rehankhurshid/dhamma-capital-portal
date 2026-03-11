@@ -632,7 +632,7 @@
 
   function getCategoryIconMarkup(slug) {
     const normalized = normalizeReportFilter(slug);
-    return CATEGORY_ICONS[normalized] || '';
+    return CATEGORY_ICONS[normalized] || '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
 
   function updateCountBadge(count) {
