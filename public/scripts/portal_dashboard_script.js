@@ -53,6 +53,8 @@
   let loadingStateHandled = false;
   let dashboardMotionEnabled = true;
   let lastSeenAt = getLastSeenAt();
+  let activeTooltipTrigger = null;
+  let activeTooltipNode = null;
 
   function getStoredToken() {
     try {
@@ -166,6 +168,7 @@
       setupLayoutSwitcher();
       setupSearch();
       setupFilters();
+      setupTooltips();
       setupLastSeenTracking();
       
       // Fetch Documents
@@ -763,6 +766,195 @@
     if (filtersContainer) {
       filtersContainer.setAttribute('data-layout-active', activeLayout);
     }
+  }
+
+  function setupTooltips() {
+    ensureTooltipStyles();
+    ensureTooltipNode();
+    if (document.body && document.body.getAttribute('data-portal-tooltips-ready') === 'true') {
+      return;
+    }
+
+    if (document.body) {
+      document.body.setAttribute('data-portal-tooltips-ready', 'true');
+    }
+
+    document.addEventListener('mouseover', function(e) {
+      const trigger = getTooltipTrigger(e.target);
+      if (!trigger) {
+        if (activeTooltipTrigger && !isMovingWithinTooltipTrigger(e, activeTooltipTrigger)) {
+          hideTooltip();
+        }
+        return;
+      }
+
+      if (activeTooltipTrigger === trigger) return;
+      showTooltip(trigger);
+    });
+
+    document.addEventListener('mouseout', function(e) {
+      if (!activeTooltipTrigger) return;
+      if (isMovingWithinTooltipTrigger(e, activeTooltipTrigger)) return;
+      hideTooltip();
+    });
+
+    document.addEventListener('focusin', function(e) {
+      const trigger = getTooltipTrigger(e.target);
+      if (!trigger) return;
+      showTooltip(trigger);
+    });
+
+    document.addEventListener('focusout', function(e) {
+      if (!activeTooltipTrigger) return;
+      if (isMovingWithinTooltipTrigger(e, activeTooltipTrigger)) return;
+      hideTooltip();
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!activeTooltipTrigger) return;
+      const trigger = getTooltipTrigger(e.target);
+      if (trigger === activeTooltipTrigger) return;
+      hideTooltip();
+    });
+
+    window.addEventListener('scroll', function() {
+      if (!activeTooltipTrigger) return;
+      positionTooltip(activeTooltipTrigger);
+    }, true);
+
+    window.addEventListener('resize', function() {
+      if (!activeTooltipTrigger) return;
+      positionTooltip(activeTooltipTrigger);
+    });
+  }
+
+  function ensureTooltipStyles() {
+    if (document.getElementById('portal-dashboard-tooltip-styles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'portal-dashboard-tooltip-styles';
+    style.textContent =
+      '[data-portal-tooltip]{position:absolute;top:0;left:0;z-index:9999;max-width:min(280px,calc(100vw - 24px));padding:8px 10px;border-radius:10px;background:rgba(12,34,56,.96);color:#fff;font-size:12px;line-height:1.4;box-shadow:0 14px 32px rgba(5,20,34,.18);pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .14s ease, transform .14s ease;}' +
+      '[data-portal-tooltip].is-visible{opacity:1;transform:translateY(0);}' +
+      '@media (prefers-reduced-motion: reduce){[data-portal-tooltip]{transition:none !important;}}';
+    document.head.appendChild(style);
+  }
+
+  function ensureTooltipNode() {
+    if (activeTooltipNode && activeTooltipNode.isConnected) return activeTooltipNode;
+
+    const existing = document.querySelector('[data-portal-tooltip]');
+    if (existing) {
+      activeTooltipNode = existing;
+      return activeTooltipNode;
+    }
+
+    const node = document.createElement('div');
+    node.setAttribute('data-portal-tooltip', '');
+    node.setAttribute('role', 'tooltip');
+    node.style.display = 'none';
+    document.body.appendChild(node);
+    activeTooltipNode = node;
+    return activeTooltipNode;
+  }
+
+  function getTooltipTrigger(node) {
+    if (!node || typeof node.closest !== 'function') return null;
+    return node.closest('[data-help], [data-tooltip], [data-tippy-content]');
+  }
+
+  function getTooltipContent(trigger) {
+    if (!trigger) return '';
+    return String(
+      trigger.getAttribute('data-help') ||
+      trigger.getAttribute('data-tooltip') ||
+      trigger.getAttribute('data-tippy-content') ||
+      ''
+    ).trim();
+  }
+
+  function getTooltipPlacement(trigger) {
+    if (!trigger) return 'top';
+    const placement = String(
+      trigger.getAttribute('data-help-placement') ||
+      trigger.getAttribute('data-tooltip-placement') ||
+      trigger.getAttribute('data-tippy-placement') ||
+      'top'
+    ).trim().toLowerCase();
+
+    if (placement === 'bottom' || placement === 'left' || placement === 'right') {
+      return placement;
+    }
+    return 'top';
+  }
+
+  function showTooltip(trigger) {
+    const content = getTooltipContent(trigger);
+    if (!content) {
+      hideTooltip();
+      return;
+    }
+
+    const tooltip = ensureTooltipNode();
+    activeTooltipTrigger = trigger;
+    tooltip.textContent = content;
+    tooltip.style.display = 'block';
+    tooltip.classList.add('is-visible');
+    positionTooltip(trigger);
+  }
+
+  function hideTooltip() {
+    activeTooltipTrigger = null;
+    if (!activeTooltipNode) return;
+    activeTooltipNode.classList.remove('is-visible');
+    activeTooltipNode.style.display = 'none';
+    activeTooltipNode.textContent = '';
+  }
+
+  function positionTooltip(trigger) {
+    if (!trigger || !activeTooltipNode) return;
+
+    const tooltip = activeTooltipNode;
+    const rect = trigger.getBoundingClientRect();
+    const placement = getTooltipPlacement(trigger);
+    const offset = 10;
+    const scrollX = window.scrollX || window.pageXOffset || 0;
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+    const tooltipRect = tooltip.getBoundingClientRect();
+    let top = 0;
+    let left = 0;
+
+    if (placement === 'bottom') {
+      top = rect.bottom + scrollY + offset;
+      left = rect.left + scrollX + ((rect.width - tooltipRect.width) / 2);
+    } else if (placement === 'left') {
+      top = rect.top + scrollY + ((rect.height - tooltipRect.height) / 2);
+      left = rect.left + scrollX - tooltipRect.width - offset;
+    } else if (placement === 'right') {
+      top = rect.top + scrollY + ((rect.height - tooltipRect.height) / 2);
+      left = rect.right + scrollX + offset;
+    } else {
+      top = rect.top + scrollY - tooltipRect.height - offset;
+      left = rect.left + scrollX + ((rect.width - tooltipRect.width) / 2);
+    }
+
+    const minLeft = scrollX + 8;
+    const maxLeft = scrollX + window.innerWidth - tooltipRect.width - 8;
+    left = Math.min(Math.max(left, minLeft), maxLeft);
+
+    const minTop = scrollY + 8;
+    if (top < minTop) {
+      top = rect.bottom + scrollY + offset;
+    }
+
+    tooltip.style.left = Math.round(left) + 'px';
+    tooltip.style.top = Math.round(top) + 'px';
+  }
+
+  function isMovingWithinTooltipTrigger(event, trigger) {
+    const related = event.relatedTarget;
+    if (!related || !(related instanceof Node)) return false;
+    return trigger.contains(related);
   }
 
   function setupSearch() {
