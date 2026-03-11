@@ -531,15 +531,39 @@
       marker.style.display = showNew ? '' : 'none';
     });
 
+    const innerLink = card.tagName === 'A' ? null : card.querySelector('[data-portal="doc-link"]');
+
     if (card.tagName === 'A') {
       card.href = downloadUrl;
       card.removeAttribute('target');
-    } else {
-      const innerLink = card.querySelector('[data-portal="doc-link"]');
-      if (innerLink && innerLink.tagName === 'A') {
-        innerLink.href = downloadUrl;
-        innerLink.removeAttribute('target');
+    } else if (innerLink && innerLink.tagName === 'A') {
+      innerLink.href = downloadUrl;
+      innerLink.removeAttribute('target');
+    }
+
+    if (innerLink && innerLink.tagName !== 'A' && !innerLink.__portalDocLinkBound) {
+      innerLink.__portalDocLinkBound = true;
+      innerLink.setAttribute('role', innerLink.getAttribute('role') || 'button');
+      if (!innerLink.hasAttribute('tabindex')) {
+        innerLink.setAttribute('tabindex', '0');
       }
+      innerLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (downloadUrl === '#') return;
+        void logDocumentAccess(doc.id);
+        void downloadWithAuthToken(downloadUrl, doc.title || 'Document')
+          .then(function(success) {
+            if (success) {
+              showPortalToast('Download started');
+            }
+          });
+      });
+      innerLink.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        innerLink.click();
+      });
     }
 
     const viewButton = card.querySelector('[data-portal="doc-view-button"]');
@@ -561,7 +585,7 @@
       }
 
       const isCardAnchor = card.tagName === 'A';
-      const clickedLink = e.target && typeof e.target.closest === 'function' ? e.target.closest('a') : null;
+      const clickedLink = e.target && typeof e.target.closest === 'function' ? e.target.closest('a, [data-portal="doc-link"]') : null;
       const isLinkClick = isCardAnchor || Boolean(clickedLink);
       const hasToken = Boolean(getStoredToken());
 
