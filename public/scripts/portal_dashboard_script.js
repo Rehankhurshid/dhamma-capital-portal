@@ -26,6 +26,7 @@
   let allDocuments = [];
   let currentSearchTerm = '';
   let currentVisibleCount = 0;
+  let currentRenderedDocuments = [];
   let currentSortOrder = 'newest';
   let currentReportFilters = [];
   let availableCategories = [];
@@ -324,6 +325,7 @@
   }
 
   function renderDocuments(docs) {
+    currentRenderedDocuments = Array.isArray(docs) ? docs.slice() : [];
     groupedContainer = getGroupedContainer();
     gridContainer = getGridContainer();
     listContainer = getListContainer();
@@ -334,6 +336,27 @@
     updateEmptyState(docs.length);
     updateLayoutVisibility();
     hideLoadingStates();
+  }
+
+  function renderActiveLayoutDocuments() {
+    const docs = currentRenderedDocuments;
+    groupedContainer = getGroupedContainer();
+    gridContainer = getGridContainer();
+    listContainer = getListContainer();
+
+    if (activeLayout === 'group' || (!gridContainer && !listContainer)) {
+      renderGroupedDocumentsIntoContainer(groupedContainer, docs);
+      return;
+    }
+
+    if (activeLayout === 'grid') {
+      renderDocumentsIntoContainer(gridContainer, docs);
+      return;
+    }
+
+    if (activeLayout === 'flex') {
+      renderDocumentsIntoContainer(listContainer, docs);
+    }
   }
 
   function renderDocumentsIntoContainer(container, docs) {
@@ -687,57 +710,6 @@
     }, { once: true });
   }
 
-  function replayGroupEnterAnimation(section, index) {
-    if (!section || !dashboardMotionEnabled) return;
-    section.classList.remove('portal-group-enter');
-    section.style.removeProperty('--portal-group-enter-delay');
-    void section.offsetWidth;
-    primeGroupEnterAnimation(section, index);
-  }
-
-  function replayCardEnterAnimation(card, index) {
-    if (!card || !dashboardMotionEnabled) return;
-    card.classList.remove('portal-doc-enter');
-    card.style.removeProperty('--portal-enter-delay');
-    void card.offsetWidth;
-    primeCardEnterAnimation(card, index);
-  }
-
-  function replayActiveLayoutAnimation() {
-    if (!dashboardMotionEnabled || currentVisibleCount === 0) return;
-
-    const visibleContainer = activeLayout === 'group'
-      ? groupedContainer
-      : activeLayout === 'grid'
-        ? gridContainer
-        : listContainer;
-
-    if (!visibleContainer) return;
-
-    window.requestAnimationFrame(function() {
-      if (activeLayout === 'group') {
-        const sections = Array.prototype.slice.call(visibleContainer.querySelectorAll('[data-portal="document-group"]'));
-
-        sections.forEach(function(section, index) {
-          replayGroupEnterAnimation(section, index);
-          const groupList = section.querySelector('[data-portal="group-list"]');
-          if (!groupList) return;
-
-          const cards = Array.prototype.slice.call(groupList.querySelectorAll('[data-portal="document-item"]'));
-          cards.forEach(function(card, cardIndex) {
-            replayCardEnterAnimation(card, cardIndex);
-          });
-        });
-        return;
-      }
-
-      const cards = Array.prototype.slice.call(visibleContainer.querySelectorAll('[data-portal="document-item"]'));
-      cards.forEach(function(card, index) {
-        replayCardEnterAnimation(card, index);
-      });
-    });
-  }
-
   function getContainerTemplate(container) {
     if (!container) return null;
     if (container.__portalTemplate) return container.__portalTemplate;
@@ -984,10 +956,10 @@
       return;
     }
 
-    updateLayoutVisibility();
     if (previousLayout !== activeLayout) {
-      replayActiveLayoutAnimation();
+      renderActiveLayoutDocuments();
     }
+    updateLayoutVisibility();
     updateFilterSummary(getCustomDateRangeState());
     updateAppliedStateIndicators(getCustomDateRangeState(), currentVisibleCount);
   }
