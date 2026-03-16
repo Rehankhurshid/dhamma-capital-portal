@@ -753,6 +753,9 @@
     newMarkers.forEach(function(marker) {
       marker.style.display = showNew ? '' : 'none';
     });
+    if (card.hasAttribute('data-tippy-content')) {
+      card.setAttribute('data-tippy-content', isMobileViewport() ? 'Click to Download' : 'Click to View Document');
+    }
 
     const innerLink = card.querySelector('[data-portal="doc-link"]');
 
@@ -820,6 +823,23 @@
       );
 
       if (clickedDownloadTrigger) {
+        return;
+      }
+
+      const prefersCardDownload = isMobileViewport();
+
+      if (prefersCardDownload) {
+        if (downloadUrl === '#') return;
+        if (isCardAnchor) {
+          e.preventDefault();
+        }
+        void logDocumentAccess(doc.id);
+        void downloadWithAuthToken(downloadUrl, doc.title || 'Document')
+          .then(function(success) {
+            if (success) {
+              showPortalToast('Download started');
+            }
+          });
         return;
       }
 
