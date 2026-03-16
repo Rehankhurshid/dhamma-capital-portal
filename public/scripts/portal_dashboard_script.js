@@ -687,6 +687,54 @@
     }, { once: true });
   }
 
+  function replayGroupEnterAnimation(section, index) {
+    if (!section || !dashboardMotionEnabled) return;
+    section.classList.remove('portal-group-enter');
+    section.style.removeProperty('--portal-group-enter-delay');
+    void section.offsetWidth;
+    primeGroupEnterAnimation(section, index);
+  }
+
+  function replayCardEnterAnimation(card, index) {
+    if (!card || !dashboardMotionEnabled) return;
+    card.classList.remove('portal-doc-enter');
+    card.style.removeProperty('--portal-enter-delay');
+    void card.offsetWidth;
+    primeCardEnterAnimation(card, index);
+  }
+
+  function replayActiveLayoutAnimation() {
+    if (!dashboardMotionEnabled || currentVisibleCount === 0) return;
+
+    const visibleContainer = activeLayout === 'group'
+      ? groupedContainer
+      : activeLayout === 'grid'
+        ? gridContainer
+        : listContainer;
+
+    if (!visibleContainer) return;
+
+    window.requestAnimationFrame(function() {
+      if (activeLayout === 'group') {
+        const sections = Array.prototype.slice.call(visibleContainer.querySelectorAll('[data-portal="document-group"]'));
+        const cards = Array.prototype.slice.call(visibleContainer.querySelectorAll('[data-portal="document-item"]'));
+
+        sections.forEach(function(section, index) {
+          replayGroupEnterAnimation(section, index);
+        });
+        cards.forEach(function(card, index) {
+          replayCardEnterAnimation(card, index);
+        });
+        return;
+      }
+
+      const cards = Array.prototype.slice.call(visibleContainer.querySelectorAll('[data-portal="document-item"]'));
+      cards.forEach(function(card, index) {
+        replayCardEnterAnimation(card, index);
+      });
+    });
+  }
+
   function getContainerTemplate(container) {
     if (!container) return null;
     if (container.__portalTemplate) return container.__portalTemplate;
@@ -911,6 +959,7 @@
   }
 
   function setActiveLayout(layout) {
+    const previousLayout = activeLayout;
     const nextLayout = layout === 'flex' || layout === 'grid' || layout === 'group' ? layout : 'group';
     const switchingToGroup = nextLayout === 'group' && activeLayout !== 'group';
     const clearedReportFilters = switchingToGroup && currentReportFilters.length > 0;
@@ -933,6 +982,9 @@
     }
 
     updateLayoutVisibility();
+    if (previousLayout !== activeLayout) {
+      replayActiveLayoutAnimation();
+    }
     updateFilterSummary(getCustomDateRangeState());
     updateAppliedStateIndicators(getCustomDateRangeState(), currentVisibleCount);
   }
