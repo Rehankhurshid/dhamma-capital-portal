@@ -937,17 +937,28 @@
     updateAppliedStateIndicators(getCustomDateRangeState(), currentVisibleCount);
   }
 
+  function getVisibleDisplayValue(container, layout) {
+    if (!container) return '';
+    const isGenerated = container.getAttribute('data-portal-generated') === 'true';
+
+    if (layout === 'grid') {
+      return 'grid';
+    }
+
+    if (layout === 'flex') {
+      return isGenerated ? 'grid' : 'flex';
+    }
+
+    return '';
+  }
+
   function updateLayoutVisibility() {
     const hasDocs = currentVisibleCount > 0;
     const useGroup = activeLayout === 'group' || (!gridContainer && !listContainer);
     const useGrid = activeLayout === 'grid';
     const useList = activeLayout === 'flex' && !!listContainer;
-    const gridDisplay = gridContainer && gridContainer.getAttribute('data-portal-generated') === 'true'
-      ? 'grid'
-      : '';
-    const listDisplay = listContainer && listContainer.getAttribute('data-portal-generated') === 'true'
-      ? 'grid'
-      : '';
+    const gridDisplay = getVisibleDisplayValue(gridContainer, 'grid');
+    const listDisplay = getVisibleDisplayValue(listContainer, 'flex');
 
     if (groupedContainer) {
       groupedContainer.style.display = hasDocs && useGroup ? '' : 'none';
