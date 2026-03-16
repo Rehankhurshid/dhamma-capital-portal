@@ -552,10 +552,12 @@
       innerLink.removeAttribute('target');
     }
 
-    if (innerLink && innerLink.tagName !== 'A' && !innerLink.__portalDocLinkBound) {
+    if (innerLink && !innerLink.__portalDocLinkBound) {
       innerLink.__portalDocLinkBound = true;
-      innerLink.setAttribute('role', innerLink.getAttribute('role') || 'button');
-      if (!innerLink.hasAttribute('tabindex')) {
+      if (innerLink.tagName !== 'A') {
+        innerLink.setAttribute('role', innerLink.getAttribute('role') || 'button');
+      }
+      if (innerLink.tagName !== 'A' && !innerLink.hasAttribute('tabindex')) {
         innerLink.setAttribute('tabindex', '0');
       }
       innerLink.addEventListener('click', function(e) {
