@@ -15,7 +15,7 @@
     'letters-from-founder': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><path d="M22 6l-10 7L2 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>',
     'internal-investment-notes': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>'
   };
-  const gridContainer = document.querySelector('[data-portal="document-grid"]');
+  let gridContainer = document.querySelector('[data-portal="document-grid"]');
   let listContainer = document.querySelector('[data-portal="document-vertical-list"]');
   let groupedContainer = document.querySelector('[data-portal="document-grouped-grid"]');
   const searchInput = document.querySelector('[data-portal="search-input"]');
@@ -324,8 +324,9 @@
   }
 
   function renderDocuments(docs) {
-    listContainer = getListContainer();
     groupedContainer = getGroupedContainer();
+    gridContainer = getGridContainer();
+    listContainer = getListContainer();
     renderGroupedDocumentsIntoContainer(groupedContainer, docs);
     renderDocumentsIntoContainer(gridContainer, docs);
     renderDocumentsIntoContainer(listContainer, docs);
@@ -360,6 +361,99 @@
       return groupedContainer;
     }
     return null;
+  }
+
+  function getGridContainer() {
+    if (gridContainer && gridContainer.isConnected && getContainerTemplate(gridContainer)) {
+      return gridContainer;
+    }
+
+    const existing = document.querySelector('[data-portal="document-grid"], [data-layout-container="grid"]');
+    if (existing) {
+      gridContainer = existing;
+    }
+
+    if (gridContainer && gridContainer.isConnected) {
+      if (!getContainerTemplate(gridContainer)) {
+        injectFallbackGridTemplate(gridContainer);
+      }
+      return gridContainer;
+    }
+
+    gridContainer = createFallbackGridContainer();
+    return gridContainer;
+  }
+
+  function createFallbackGridContainer() {
+    const container = document.createElement('div');
+    container.setAttribute('data-portal', 'document-grid');
+    container.setAttribute('data-layout-container', 'grid');
+    container.setAttribute('data-portal-generated', 'true');
+    container.setAttribute('aria-live', 'polite');
+
+    const reference = groupedContainer || findExistingGroupedContainer();
+    if (reference && reference.parentNode) {
+      reference.parentNode.insertBefore(container, reference.nextSibling);
+    } else if (document.body) {
+      document.body.appendChild(container);
+    }
+
+    injectFallbackGridTemplate(container);
+    return container;
+  }
+
+  function injectFallbackGridTemplate(container) {
+    if (!container) return;
+
+    ensureFallbackGridStyles();
+    container.setAttribute('data-portal-generated', 'true');
+    container.setAttribute('data-layout-container', 'grid');
+    container.innerHTML = '';
+    container.appendChild(createFallbackGridItemTemplate());
+  }
+
+  function createFallbackGridItemTemplate() {
+    const item = document.createElement('article');
+    item.setAttribute('data-portal', 'document-item');
+    item.innerHTML =
+      '<div data-portal="document-item-header">' +
+      '<span data-portal="doc-type">PDF</span>' +
+      '<span data-portal="document-item-new-marker" style="display:none;">New</span>' +
+      '</div>' +
+      '<h3 data-portal="doc-title">Document</h3>' +
+      '<div data-portal="document-item-meta">' +
+      '<span data-portal="doc-size"></span>' +
+      '<span data-portal="doc-date"></span>' +
+      '</div>' +
+      '<div data-portal="document-item-actions">' +
+      '<a href="#" data-portal="doc-link">Download</a>' +
+      '<button type="button" data-portal="doc-view-button">Preview</button>' +
+      '</div>';
+    return item;
+  }
+
+  function ensureFallbackGridStyles() {
+    if (document.getElementById('portal-generated-grid-styles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'portal-generated-grid-styles';
+    style.textContent =
+      '[data-portal="document-grid"][data-portal-generated="true"]{display:none;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;}' +
+      '[data-portal="document-grid"][data-portal-generated="true"] [data-portal="document-item"]{display:grid;gap:14px;padding:20px;border:1px solid rgba(16,40,70,.12);border-radius:22px;background:linear-gradient(180deg,#ffffff,#f7fbff);box-shadow:0 16px 40px rgba(8,18,36,.08);cursor:pointer;}' +
+      '[data-portal="document-grid"][data-portal-generated="true"] [data-portal="document-item-header"]{display:flex;align-items:center;justify-content:space-between;gap:12px;}' +
+      '[data-portal="document-grid"][data-portal-generated="true"] [data-portal="doc-type"],[data-portal="document-grid"][data-portal-generated="true"] [data-portal="document-item-new-marker"]{display:inline-flex;align-items:center;justify-content:center;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;}' +
+      '[data-portal="document-grid"][data-portal-generated="true"] [data-portal="doc-type"]{background:rgba(23,54,93,.06);color:#17365d;}' +
+      '[data-portal="document-grid"][data-portal-generated="true"] [data-portal="document-item-new-marker"]{background:#17365d;color:#fff;}' +
+      '[data-portal="document-grid"][data-portal-generated="true"] [data-portal="doc-title"]{margin:0;font-size:17px;font-weight:600;line-height:1.35;color:#17365d;}' +
+      '[data-portal="document-grid"][data-portal-generated="true"] [data-portal="document-item-meta"]{display:flex;flex-wrap:wrap;gap:8px;color:#4b6582;font-size:12px;line-height:1.4;}' +
+      '[data-portal="document-grid"][data-portal-generated="true"] [data-portal="document-item-meta"] > span{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:rgba(23,54,93,.06);}' +
+      '[data-portal="document-grid"][data-portal-generated="true"] [data-portal="document-item-actions"]{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:auto;}' +
+      '[data-portal="document-grid"][data-portal-generated="true"] [data-portal="doc-link"],[data-portal="document-grid"][data-portal-generated="true"] [data-portal="doc-view-button"]{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 14px;border-radius:999px;font-size:13px;font-weight:600;text-decoration:none;cursor:pointer;transition:transform .16s ease, box-shadow .16s ease, background-color .16s ease;}' +
+      '[data-portal="document-grid"][data-portal-generated="true"] [data-portal="doc-link"]{border:0;background:#17365d;color:#fff;box-shadow:0 10px 24px rgba(23,54,93,.16);}' +
+      '[data-portal="document-grid"][data-portal-generated="true"] [data-portal="doc-view-button"]{border:1px solid rgba(23,54,93,.18);background:#fff;color:#17365d;}' +
+      '@media (hover:hover){[data-portal="document-grid"][data-portal-generated="true"] [data-portal="document-item"]:hover [data-portal="doc-link"],[data-portal="document-grid"][data-portal-generated="true"] [data-portal="document-item"]:hover [data-portal="doc-view-button"]{transform:translateY(-1px);}}' +
+      '@media (max-width:767px){[data-portal="document-grid"][data-portal-generated="true"]{grid-template-columns:minmax(0,1fr);}}';
+    document.head.appendChild(style);
   }
 
   function getListContainer() {
@@ -848,6 +942,9 @@
     const useGroup = activeLayout === 'group' || (!gridContainer && !listContainer);
     const useGrid = activeLayout === 'grid';
     const useList = activeLayout === 'flex' && !!listContainer;
+    const gridDisplay = gridContainer && gridContainer.getAttribute('data-portal-generated') === 'true'
+      ? 'grid'
+      : '';
     const listDisplay = listContainer && listContainer.getAttribute('data-portal-generated') === 'true'
       ? 'grid'
       : '';
@@ -856,7 +953,7 @@
       groupedContainer.style.display = hasDocs && useGroup ? '' : 'none';
     }
     if (gridContainer) {
-      gridContainer.style.display = hasDocs && useGrid ? '' : 'none';
+      gridContainer.style.display = hasDocs && useGrid ? gridDisplay : 'none';
     }
     if (listContainer) {
       listContainer.style.display = hasDocs && useList ? listDisplay : 'none';
