@@ -717,13 +717,16 @@
     window.requestAnimationFrame(function() {
       if (activeLayout === 'group') {
         const sections = Array.prototype.slice.call(visibleContainer.querySelectorAll('[data-portal="document-group"]'));
-        const cards = Array.prototype.slice.call(visibleContainer.querySelectorAll('[data-portal="document-item"]'));
 
         sections.forEach(function(section, index) {
           replayGroupEnterAnimation(section, index);
-        });
-        cards.forEach(function(card, index) {
-          replayCardEnterAnimation(card, index);
+          const groupList = section.querySelector('[data-portal="group-list"]');
+          if (!groupList) return;
+
+          const cards = Array.prototype.slice.call(groupList.querySelectorAll('[data-portal="document-item"]'));
+          cards.forEach(function(card, cardIndex) {
+            replayCardEnterAnimation(card, cardIndex);
+          });
         });
         return;
       }
