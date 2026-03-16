@@ -754,7 +754,7 @@
       marker.style.display = showNew ? '' : 'none';
     });
 
-    const innerLink = card.tagName === 'A' ? null : card.querySelector('[data-portal="doc-link"]');
+    const innerLink = card.querySelector('[data-portal="doc-link"]');
 
     if (card.tagName === 'A') {
       card.href = viewUrl;
