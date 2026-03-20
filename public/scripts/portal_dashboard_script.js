@@ -374,16 +374,36 @@
   }
 
   function getGroupedContainer() {
-    if (groupedContainer && groupedContainer.isConnected) return groupedContainer;
+    if (groupedContainer && groupedContainer.isConnected) {
+      ensureGroupedLayoutStyles();
+      return groupedContainer;
+    }
 
     const existing = findExistingGroupedContainer();
     if (existing) {
+      ensureGroupedLayoutStyles();
       existing.setAttribute('data-portal', 'document-grouped-grid');
       existing.setAttribute('data-layout-container', 'group');
       groupedContainer = existing;
       return groupedContainer;
     }
     return null;
+  }
+
+  function ensureGroupedLayoutStyles() {
+    if (document.getElementById('portal-grouped-layout-styles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'portal-grouped-layout-styles';
+    style.textContent =
+      '[data-portal="document-grouped-grid"]{display:grid !important;grid-template-columns:repeat(4,minmax(0,1fr)) !important;gap:16px !important;align-items:start;}' +
+      '[data-portal="document-grouped-grid"] > [data-portal="document-group"]{width:auto !important;min-width:0 !important;max-width:none !important;}' +
+      '[data-portal="document-grouped-grid"] [data-portal="group-list"]{min-width:0;}' +
+      '[data-portal="document-grouped-grid"] [data-portal="document-item"]{min-width:0;}' +
+      '@media (max-width:1279px){[data-portal="document-grouped-grid"]{grid-template-columns:repeat(3,minmax(0,1fr)) !important;}}' +
+      '@media (max-width:1024px){[data-portal="document-grouped-grid"]{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}}' +
+      '@media (max-width:680px){[data-portal="document-grouped-grid"]{grid-template-columns:minmax(0,1fr) !important;}}';
+    document.head.appendChild(style);
   }
 
   function getGridContainer() {
