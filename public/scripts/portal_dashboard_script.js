@@ -746,11 +746,18 @@
     if (title) title.textContent = doc.title || 'Untitled';
 
     const fileType = card.querySelector('[data-portal="doc-type"]');
-    if (fileType) fileType.textContent = String(doc.file_type || 'PDF').toUpperCase();
+    if (fileType) {
+      removeAdjacentMetaSeparators(fileType);
+      fileType.remove();
+    }
 
     const fileSize = card.querySelector('[data-portal="doc-size"]');
     if (fileSize) {
       fileSize.textContent = doc.file_size_label || '';
+      if (!fileSize.textContent.trim()) {
+        removeAdjacentMetaSeparators(fileSize);
+        fileSize.remove();
+      }
     }
 
     const dateEl = card.querySelector('[data-portal="doc-date"]');
@@ -872,6 +879,21 @@
       void logDocumentAccess(doc.id);
       void openDocumentViewer(viewUrl, doc.title || 'Document');
     });
+  }
+
+  function removeAdjacentMetaSeparators(node) {
+    if (!node || !node.parentNode) return;
+
+    const prev = node.previousSibling;
+    const next = node.nextSibling;
+
+    if (prev && prev.nodeType === Node.TEXT_NODE && /[•·]/.test(prev.textContent || '')) {
+      prev.parentNode.removeChild(prev);
+    }
+
+    if (next && next.nodeType === Node.TEXT_NODE && /[•·]/.test(next.textContent || '')) {
+      next.parentNode.removeChild(next);
+    }
   }
 
   function createGroupedSectionFromTemplate(templates, group, groupIndex) {
